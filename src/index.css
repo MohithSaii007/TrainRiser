@@ -1,0 +1,205 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Core palette - Dark theme with emerald accents */
+    --background: 222 84% 2%;
+    --foreground: 220 13% 91%;
+
+    --card: 222 84% 4%;
+    --card-foreground: 220 13% 91%;
+
+    --popover: 222 84% 4%;
+    --popover-foreground: 220 13% 91%;
+
+    --primary: 142 71% 45%;
+    --primary-foreground: 144 80% 10%;
+
+    --secondary: 217 32% 12%;
+    --secondary-foreground: 220 13% 91%;
+
+    --muted: 217 32% 15%;
+    --muted-foreground: 215 20% 65%;
+
+    --accent: 142 76% 64%;
+    --accent-foreground: 144 80% 10%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 217 32% 15%;
+    --input: 217 32% 15%;
+    --ring: 142 71% 45%;
+
+    --radius: 0.75rem;
+
+    /* Custom design tokens */
+    --emerald-glow: 142 76% 36%;
+    --emerald-light: 142 76% 64%;
+    --glass: 0 0% 100% / 0.06;
+    --glass-border: 0 0% 100% / 0.12;
+    
+    /* Berth colors for seats - vibrant attractive colors */
+    --lb-color: 45 93% 58%;  /* Golden Yellow */
+    --ub-color: 199 89% 48%; /* Sky Blue */
+    --mb-color: 280 87% 65%; /* Purple */
+    --sl-color: 142 71% 45%; /* Emerald Green */
+    --su-color: 173 80% 40%; /* Teal */
+    --booked-color: 0 84% 60%; /* Red */
+    --selected-color: 142 71% 45%;
+
+    --sidebar-background: 222 84% 4%;
+    --sidebar-foreground: 220 13% 91%;
+    --sidebar-primary: 142 71% 45%;
+    --sidebar-primary-foreground: 144 80% 10%;
+    --sidebar-accent: 217 32% 15%;
+    --sidebar-accent-foreground: 220 13% 91%;
+    --sidebar-border: 217 32% 15%;
+    --sidebar-ring: 142 71% 45%;
+  }
+
+  .dark {
+    --background: 222 84% 2%;
+    --foreground: 220 13% 91%;
+    --card: 222 84% 4%;
+    --card-foreground: 220 13% 91%;
+    --popover: 222 84% 4%;
+    --popover-foreground: 220 13% 91%;
+    --primary: 142 71% 45%;
+    --primary-foreground: 144 80% 10%;
+    --secondary: 217 32% 12%;
+    --secondary-foreground: 220 13% 91%;
+    --muted: 217 32% 15%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 142 76% 64%;
+    --accent-foreground: 144 80% 10%;
+    --destructive: 0 62% 30%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 217 32% 15%;
+    --input: 217 32% 15%;
+    --ring: 142 71% 45%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+}
+
+@layer components {
+  .gradient-bg {
+    background: 
+      radial-gradient(circle at 20% 10%, hsl(142 71% 45% / 0.2), transparent 40%),
+      radial-gradient(circle at 80% 90%, hsl(142 76% 64% / 0.2), transparent 40%),
+      linear-gradient(180deg, hsl(222 84% 2%), hsl(222 84% 2%));
+  }
+
+  .glass-card {
+    @apply bg-card/60 backdrop-blur-xl border border-white/10 rounded-2xl;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+  }
+
+  .glass-panel {
+    background: linear-gradient(180deg, rgba(255,255,255,0.12), rgba(255,255,255,0.02));
+    backdrop-filter: blur(25px);
+    @apply border border-white/15 rounded-3xl;
+    box-shadow: 0 40px 120px rgba(0, 0, 0, 0.6);
+  }
+
+  .seat-lb {
+    background-color: hsl(var(--lb-color));
+  }
+
+  .seat-ub {
+    background-color: hsl(var(--ub-color));
+  }
+
+  .seat-mb {
+    background-color: hsl(var(--mb-color));
+  }
+
+  .seat-sl {
+    background-color: hsl(var(--sl-color));
+  }
+
+  .seat-su {
+    background-color: hsl(var(--su-color));
+  }
+
+  .seat-booked {
+    background-color: hsl(var(--booked-color));
+    @apply cursor-not-allowed opacity-70;
+  }
+
+  .seat-selected {
+    @apply ring-4 ring-black;
+    box-shadow: 0 0 18px hsl(142 71% 45% / 0.9);
+  }
+
+}
+
+@layer utilities {
+  .text-gradient {
+    @apply bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent;
+  }
+
+  .btn-primary-gradient {
+    @apply bg-gradient-to-r from-primary to-accent text-primary-foreground font-extrabold;
+  }
+
+  .animate-panel-in {
+    animation: panelIn 0.8s ease forwards;
+  }
+
+  @keyframes panelIn {
+    from {
+      opacity: 0;
+      transform: translateY(40px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  /* Additional animations */
+  .animate-slide-in-left {
+    animation: slideInLeft 0.5s ease-out forwards;
+  }
+
+  .animate-slide-in-right {
+    animation: slideInRight 0.5s ease-out forwards;
+  }
+
+  @keyframes slideInLeft {
+    from {
+      opacity: 0;
+      transform: translateX(-30px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  @keyframes slideInRight {
+    from {
+      opacity: 0;
+      transform: translateX(30px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+}

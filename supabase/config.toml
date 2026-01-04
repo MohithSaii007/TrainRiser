@@ -1,0 +1,10 @@
+project_id = "bkowiwahwsbyotynanlx"
+
+[functions.send-otp]
+verify_jwt = false
+
+[functions.verify-otp]
+verify_jwt = false
+
+[functions.send-ticket-confirmation]
+verify_jwt = false
