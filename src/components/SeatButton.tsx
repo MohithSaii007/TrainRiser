@@ -34,18 +34,23 @@ const SeatButton = ({ number, type, isBooked, isLocked, isRAC, isWL, isSelected,
       disabled={isBooked || (isLocked && !isSelected)}
       className={cn(
         baseClass,
-        typeClasses[type],
-        isBooked && "bg-red-500 opacity-60 cursor-not-allowed",
+        // Only apply berth type color if not booked, locked, or selected
+        !isBooked && !isLocked && !isSelected && typeClasses[type],
+        // Booked state uses the red color from index.css
+        isBooked && "seat-booked",
+        // Locked state (by others)
         isLocked && !isSelected && "bg-amber-500 opacity-80 cursor-not-allowed",
-        isRAC && "bg-yellow-400 text-black",
-        isWL && "bg-gray-400 text-white opacity-50",
-        isSelected && "ring-4 ring-black shadow-[0_0_18px_rgba(16,185,129,0.9)] scale-110 z-10",
+        // RAC/WL indicators
+        isRAC && !isBooked && "bg-yellow-400 text-black",
+        isWL && !isBooked && "bg-gray-400 text-white opacity-50",
+        // Selected state
+        isSelected && "seat-selected ring-4 ring-black scale-110 z-10",
         !isBooked && !isLocked && !isSelected && "text-gray-900"
       )}
     >
       {number}
-      {isRAC && <span className="absolute top-0 right-1 text-[8px] font-black">RAC</span>}
-      {isWL && <span className="absolute top-0 right-1 text-[8px] font-black">WL</span>}
+      {isRAC && !isBooked && <span className="absolute top-0 right-1 text-[8px] font-black">RAC</span>}
+      {isWL && !isBooked && <span className="absolute top-0 right-1 text-[8px] font-black">WL</span>}
     </button>
   );
 };
