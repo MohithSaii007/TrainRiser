@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import Header from "@/components/Header";
+import RouteMap from "@/components/RouteMap";
 import { Train, ScheduleEntry, FARES, COACH_NAMES } from "@/types/booking";
 import { Button } from "@/components/ui/button";
-import { Users, TrendingUp, Sparkles, Info, Clock, ShieldCheck } from "lucide-react";
+import { Users, TrendingUp, Sparkles, Info, Clock, ShieldCheck, Map as MapIcon, ChevronDown, ChevronUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 
@@ -17,6 +18,7 @@ const Results = () => {
   const [trains, setTrains] = useState<Train[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCoaches, setSelectedCoaches] = useState<Record<string, string>>({});
+  const [expandedRoute, setExpandedRoute] = useState<string | null>(null);
 
   useEffect(() => {
     fetch("/data/schedules.json")
@@ -39,7 +41,7 @@ const Results = () => {
               coaches: ["SL", "3A", "2A", "1A", "CC"],
               crowdLevel: Math.random() > 0.7 ? 'high' : Math.random() > 0.4 ? 'medium' : 'low',
               confirmationProb: Math.floor(Math.random() * 40) + 60,
-              route: [from, to]
+              route: [from, "BZA", "WL", to] // Mock route
             });
           }
         });
@@ -77,6 +79,13 @@ const Results = () => {
     sessionStorage.setItem("bookingData", JSON.stringify(bookingData));
     navigate(`/seats/${coachType.toLowerCase()}`);
   };
+
+  const mockStops = [
+    { station: "Chennai Central", code: "MAS", arrival: "Start", departure: "22:00", occupancy: 85 },
+    { station: "Vijayawada", code: "BZA", arrival: "04:15", departure: "04:30", occupancy: 65 },
+    { station: "Warangal", code: "WL", arrival: "07:20", departure: "07:22", occupancy: 45 },
+    { station: "New Delhi", code: "NDLS", arrival: "20:00", departure: "End", occupancy: 20 },
+  ];
 
   return (
     <div className="min-h-screen gradient-bg">
@@ -134,7 +143,7 @@ const Results = () => {
                   </div>
                 </div>
 
-                <div className="flex justify-between items-center mb-8 p-4 bg-background/30 rounded-2xl border border-border">
+                <div className="flex justify-between items-center mb-4 p-4 bg-background/30 rounded-2xl border border-border">
                   <div className="text-center">
                     <div className="text-xs text-muted-foreground uppercase tracking-wider">Departure</div>
                     <div className="text-2xl font-black">{train.dep}</div>
@@ -151,6 +160,21 @@ const Results = () => {
                     <div className="text-xs font-bold text-primary">{to}</div>
                   </div>
                 </div>
+
+                <button 
+                  onClick={() => setExpandedRoute(expandedRoute === train.number ? null : train.number)}
+                  className="flex items-center gap-2 text-xs font-black text-primary uppercase tracking-widest mb-6 hover:underline"
+                >
+                  <MapIcon className="w-3 h-3" />
+                  {expandedRoute === train.number ? "Hide Live Route" : "View Live Route & Occupancy"}
+                  {expandedRoute === train.number ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                </button>
+
+                {expandedRoute === train.number && (
+                  <div className="mb-8 p-6 rounded-2xl bg-background/50 border border-border animate-accordion-down">
+                    <RouteMap stops={mockStops} currentStationCode={from} />
+                  </div>
+                )}
 
                 {selectedCoaches[train.number] === 'SL' && (
                   <div className="mb-5 p-3 bg-primary/10 border border-primary/30 rounded-xl flex items-center justify-between animate-fade-in">

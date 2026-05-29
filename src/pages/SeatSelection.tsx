@@ -7,7 +7,7 @@ import SeatLockTimer from "@/components/SeatLockTimer";
 import { BookingData, BerthType, BERTH_LABELS, COACH_NAMES, FARES, CoachData, SeatStatus } from "@/types/booking";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Info, Sparkles, Users, MapPin } from "lucide-react";
+import { Info, Sparkles, Users, MapPin, Accessibility, Group } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { lockSeats, releaseSeats, subscribeToCoachSeats } from "@/services/bookingService";
 
@@ -120,6 +120,28 @@ const SeatSelection = () => {
     }
   };
 
+  const selectCluster = async (startNum: number) => {
+    // Select 4 seats in a cluster (e.g., 1, 2, 3, 4)
+    const cluster = [startNum, startNum + 1, startNum + 2, startNum + 3].filter(n => n <= config.totalSeats);
+    if (selectedSeats.length + cluster.length > 6) {
+      toast.error("Cluster exceeds 6 seat limit");
+      return;
+    }
+
+    setIsLocking(true);
+    try {
+      if (user) {
+        await lockSeats(bookingData!.train.number, currentCoach!.id, cluster, user.uid);
+        setSelectedSeats(prev => [...new Set([...prev, ...cluster])]);
+        toast.success("Family cluster locked!");
+      }
+    } catch (error: any) {
+      toast.error("Some seats in this cluster are unavailable");
+    } finally {
+      setIsLocking(false);
+    }
+  };
+
   const handleProceed = () => {
     if (selectedSeats.length === 0) {
       toast.error("Please select at least one seat");
@@ -185,11 +207,11 @@ const SeatSelection = () => {
               <div className="mt-6 space-y-4">
                 <div className="p-4 rounded-xl bg-primary/5 border border-primary/20">
                   <div className="flex items-center gap-2 text-xs font-bold text-primary mb-2">
-                    <Sparkles className="w-3 h-3" />
-                    SMART RECOMMENDATION
+                    <Accessibility className="w-3 h-3" />
+                    ACCESSIBILITY INFO
                   </div>
                   <p className="text-xs leading-relaxed">
-                    Coach <strong>{coaches.find(c => c.occupancy === Math.min(...coaches.map(c => c.occupancy)))?.id}</strong> has the best seat clusters for families.
+                    Lower berths 1-4 are reserved for elderly and wheelchair assistance.
                   </p>
                 </div>
 
@@ -205,8 +227,8 @@ const SeatSelection = () => {
                     <span className="text-[10px] font-bold uppercase">Booked</span>
                   </div>
                   <div className="flex items-center gap-2 p-2 rounded-lg bg-background/50 border border-border">
-                    <span className="w-3 h-3 rounded-sm bg-amber-500" />
-                    <span className="text-[10px] font-bold uppercase">Locked</span>
+                    <span className="w-3 h-3 rounded-sm bg-yellow-400" />
+                    <span className="text-[10px] font-bold uppercase">RAC</span>
                   </div>
                 </div>
               </div>
@@ -251,11 +273,10 @@ const SeatSelection = () => {
                   <Users className="w-5 h-5 text-primary" />
                   Select Coach
                 </h3>
-                <div className="flex gap-4 text-[10px] font-bold uppercase tracking-wider">
-                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500" /> Low</span>
-                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-yellow-500" /> Med</span>
-                  <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500" /> High</span>
-                </div>
+                <Button variant="outline" size="sm" className="text-[10px] font-black uppercase tracking-widest border-primary/30 text-primary" onClick={() => selectCluster(1)}>
+                  <Group className="w-3 h-3 mr-2" />
+                  Quick Family Cluster
+                </Button>
               </div>
               <CoachSelector 
                 coaches={coaches} 
@@ -279,7 +300,10 @@ const SeatSelection = () => {
                           <SeatButton
                             number={num}
                             type={type}
-                            isBooked={status === 'booked' || (status === 'locked' && !isLockedByMe)}
+                            isBooked={status === 'booked'}
+                            isLocked={status === 'locked' && !isLockedByMe}
+                            isRAC={status === 'rac'}
+                            isWL={status === 'wl'}
                             isSelected={selectedSeats.includes(num)}
                             onClick={() => toggleSeat(num, type)}
                           />
@@ -298,7 +322,10 @@ const SeatSelection = () => {
                             <SeatButton
                               number={num}
                               type={type}
-                              isBooked={status === 'booked' || (status === 'locked' && !isLockedByMe)}
+                              isBooked={status === 'booked'}
+                              isLocked={status === 'locked' && !isLockedByMe}
+                              isRAC={status === 'rac'}
+                              isWL={status === 'wl'}
                               isSelected={selectedSeats.includes(num)}
                               onClick={() => toggleSeat(num, type)}
                             />
