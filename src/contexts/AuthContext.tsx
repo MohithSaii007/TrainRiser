@@ -47,10 +47,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
-        if (userDoc.exists()) {
-          setUser({ uid: firebaseUser.uid, ...userDoc.data() } as UserProfile);
-        } else {
+        try {
+          const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
+          if (userDoc.exists()) {
+            setUser({ uid: firebaseUser.uid, ...userDoc.data() } as UserProfile);
+          } else {
+            setUser({ uid: firebaseUser.uid, email: firebaseUser.email || "", name: "", phone: "" });
+          }
+        } catch (error) {
+          console.error("Error fetching user profile:", error);
+          // Fallback to basic info if profile fetch fails due to permissions
           setUser({ uid: firebaseUser.uid, email: firebaseUser.email || "", name: "", phone: "" });
         }
       } else {
@@ -84,9 +90,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const updatePreferences = async (prefs: UserProfile['preferences']) => {
     if (!user) return;
-    const userRef = doc(db, "users", user.uid);
-    await updateDoc(userRef, { preferences: prefs });
-    setUser(prev => prev ? { ...prev, preferences: prefs } : null);
+    try {
+      const userRef = doc(db, "users", user.uid);
+      await updateDoc(userRef, { preferences: prefs });
+      setUser(prev => prev ? { ...prev, preferences: prefs } : null);
+    } catch (error) {
+      console.error("Error updating preferences:", error);
+      throw error;
+    }
   };
 
   const logout = async () => {
