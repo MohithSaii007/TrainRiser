@@ -4,6 +4,8 @@ export interface Train {
   dep: string;
   arr: string;
   coaches: string[];
+  crowdLevel: 'low' | 'medium' | 'high';
+  confirmationProb?: number; // 0-100 for WL
 }
 
 export interface Station {
@@ -25,6 +27,14 @@ export interface Passenger {
   age: string;
   seatNumber: number;
   berthType: string;
+  preference?: BerthType;
+}
+
+export interface CoachData {
+  id: string;
+  type: string;
+  occupancy: number; // 0-100
+  availableSeats: number;
 }
 
 export interface BookingData {
@@ -32,12 +42,14 @@ export interface BookingData {
   from: string;
   to: string;
   date: string;
-  coach: string;
+  coach: string; // e.g., "S1", "B1"
+  coachType: string; // e.g., "SL", "3A"
   fare: number;
   seats: number[];
   seatTypes: Record<number, string>;
   totalFare: number;
   passengers?: Passenger[];
+  lockExpiresAt?: number;
 }
 
 export const FARES: Record<string, number> = {
