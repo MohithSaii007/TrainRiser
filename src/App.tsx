@@ -13,6 +13,7 @@ import Payment from "./pages/Payment";
 import Ticket from "./pages/Ticket";
 import PnrStatus from "./pages/PnrStatus";
 import Auth from "./pages/Auth";
+import Dashboard from "./pages/Dashboard";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -34,7 +35,7 @@ const App = () => (
             <Route path="/payment" element={<Payment />} />
             <Route path="/ticket" element={<Ticket />} />
             <Route path="/pnr-status" element={<PnrStatus />} />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            <Route path="/dashboard" element={<Dashboard />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

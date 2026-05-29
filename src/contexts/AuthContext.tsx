@@ -4,16 +4,22 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
-  User as FirebaseUser,
 } from "firebase/auth";
-import { doc, setDoc, getDoc } from "firebase/firestore";
+import { doc, setDoc, getDoc, updateDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
+import { BerthType } from "@/types/booking";
 
 export interface UserProfile {
   uid: string;
   email: string;
   name: string;
   phone: string;
+  preferences?: {
+    preferredBerth?: BerthType;
+    foodPreference?: 'veg' | 'non-veg';
+    frequentRoutes?: string[];
+  };
+  travelHistory?: any[];
 }
 
 interface AuthContextType {
@@ -26,6 +32,7 @@ interface AuthContextType {
     name: string,
     phone: string
   ) => Promise<{ error?: string }>;
+  updatePreferences: (prefs: UserProfile['preferences']) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -42,20 +49,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       if (firebaseUser) {
         const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
         if (userDoc.exists()) {
-          const userData = userDoc.data();
-          setUser({
-            uid: firebaseUser.uid,
-            email: firebaseUser.email || "",
-            name: userData.name || "",
-            phone: userData.phone || "",
-          });
+          setUser({ uid: firebaseUser.uid, ...userDoc.data() } as UserProfile);
         } else {
-          setUser({
-            uid: firebaseUser.uid,
-            email: firebaseUser.email || "",
-            name: "",
-            phone: "",
-          });
+          setUser({ uid: firebaseUser.uid, email: firebaseUser.email || "", name: "", phone: "" });
         }
       } else {
         setUser(null);
@@ -66,61 +62,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     return () => unsubscribe();
   }, []);
 
-  const login = async (
-    email: string,
-    password: string
-  ): Promise<{ error?: string }> => {
+  const login = async (email: string, password: string) => {
     try {
       await signInWithEmailAndPassword(auth, email, password);
       return {};
     } catch (error: any) {
-      let message = "Login failed. Please try again.";
-      if (error.code === "auth/user-not-found") {
-        message = "No account found with this email.";
-      } else if (error.code === "auth/wrong-password") {
-        message = "Incorrect password.";
-      } else if (error.code === "auth/invalid-email") {
-        message = "Invalid email address.";
-      } else if (error.code === "auth/invalid-credential") {
-        message = "Invalid email or password.";
-      }
-      return { error: message };
+      return { error: error.message };
     }
   };
 
-  const register = async (
-    email: string,
-    password: string,
-    name: string,
-    phone: string
-  ): Promise<{ error?: string }> => {
+  const register = async (email: string, password: string, name: string, phone: string) => {
     try {
-      const userCredential = await createUserWithEmailAndPassword(
-        auth,
-        email,
-        password
-      );
-      const firebaseUser = userCredential.user;
-
-      await setDoc(doc(db, "users", firebaseUser.uid), {
-        name,
-        phone,
-        email,
-        createdAt: new Date().toISOString(),
-      });
-
+      const res = await createUserWithEmailAndPassword(auth, email, password);
+      const userData = { name, phone, email, createdAt: new Date().toISOString(), preferences: { preferredBerth: 'lb' as BerthType } };
+      await setDoc(doc(db, "users", res.user.uid), userData);
       return {};
     } catch (error: any) {
-      let message = "Registration failed. Please try again.";
-      if (error.code === "auth/email-already-in-use") {
-        message = "An account with this email already exists.";
-      } else if (error.code === "auth/weak-password") {
-        message = "Password should be at least 6 characters.";
-      } else if (error.code === "auth/invalid-email") {
-        message = "Invalid email address.";
-      }
-      return { error: message };
+      return { error: error.message };
     }
+  };
+
+  const updatePreferences = async (prefs: UserProfile['preferences']) => {
+    if (!user) return;
+    const userRef = doc(db, "users", user.uid);
+    await updateDoc(userRef, { preferences: prefs });
+    setUser(prev => prev ? { ...prev, preferences: prefs } : null);
   };
 
   const logout = async () => {
@@ -128,7 +94,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, register, updatePreferences, logout }}>
       {children}
     </AuthContext.Provider>
   );
@@ -136,8 +102,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error("useAuth must be used within an AuthProvider");
-  }
+  if (context === undefined) throw new Error("useAuth must be used within an AuthProvider");
   return context;
 };
