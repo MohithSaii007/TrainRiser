@@ -1,3 +1,27 @@
+export type BerthType = 'lb' | 'mb' | 'ub' | 'sl' | 'su' | 'cc';
+
+export interface Station {
+  code: string;
+  name: string;
+  index: number;
+}
+
+export interface CoachData {
+  id: string;
+  type: string;
+  occupancy: number;
+  availableSeats: number;
+  totalSeats: number;
+}
+
+export interface SeatStatus {
+  number: number;
+  type: BerthType;
+  status: 'available' | 'booked' | 'locked' | 'rac' | 'wl';
+  lockedBy?: string;
+  expiresAt?: number;
+}
+
 export interface Train {
   number: string;
   name: string;
@@ -5,21 +29,8 @@ export interface Train {
   arr: string;
   coaches: string[];
   crowdLevel: 'low' | 'medium' | 'high';
-  confirmationProb?: number; // 0-100 for WL
-}
-
-export interface Station {
-  code: string;
-  name: string;
-}
-
-export interface ScheduleEntry {
-  train_number: string;
-  train_name: string;
-  station_code: string;
-  arrival: string | null;
-  departure: string | null;
-  day: number;
+  confirmationProb?: number;
+  route: string[]; // Array of station codes
 }
 
 export interface Passenger {
@@ -30,20 +41,13 @@ export interface Passenger {
   preference?: BerthType;
 }
 
-export interface CoachData {
-  id: string;
-  type: string;
-  occupancy: number; // 0-100
-  availableSeats: number;
-}
-
 export interface BookingData {
   train: Train;
   from: string;
   to: string;
   date: string;
-  coach: string; // e.g., "S1", "B1"
-  coachType: string; // e.g., "SL", "3A"
+  coach: string;
+  coachType: string;
   fare: number;
   seats: number[];
   seatTypes: Record<number, string>;
@@ -57,6 +61,7 @@ export const FARES: Record<string, number> = {
   "3A": 460,
   "2A": 700,
   "1A": 1050,
+  "CC": 350,
 };
 
 export const COACH_NAMES: Record<string, string> = {
@@ -64,9 +69,8 @@ export const COACH_NAMES: Record<string, string> = {
   "3A": "AC 3 Tier",
   "2A": "AC 2 Tier",
   "1A": "AC 1st Class",
+  "CC": "AC Chair Car",
 };
-
-export type BerthType = 'lb' | 'mb' | 'ub' | 'sl' | 'su';
 
 export const BERTH_LABELS: Record<BerthType, string> = {
   lb: "Lower Berth",
@@ -74,4 +78,5 @@ export const BERTH_LABELS: Record<BerthType, string> = {
   ub: "Upper Berth",
   sl: "Side Lower",
   su: "Side Upper",
+  cc: "Chair Car Seat",
 };

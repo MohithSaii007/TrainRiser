@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import Header from "@/components/Header";
 import { Train, ScheduleEntry, FARES, COACH_NAMES } from "@/types/booking";
 import { Button } from "@/components/ui/button";
-import { Users, TrendingUp, Sparkles, Info } from "lucide-react";
+import { Users, TrendingUp, Sparkles, Info, Clock, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 
@@ -36,9 +36,10 @@ const Results = () => {
               name: fs.train_name,
               dep: fs.departure || "—",
               arr: ts.arrival || ts.departure || "—",
-              coaches: ["SL", "3A", "2A", "1A"],
+              coaches: ["SL", "3A", "2A", "1A", "CC"],
               crowdLevel: Math.random() > 0.7 ? 'high' : Math.random() > 0.4 ? 'medium' : 'low',
               confirmationProb: Math.floor(Math.random() * 40) + 60,
+              route: [from, to]
             });
           }
         });
@@ -69,6 +70,9 @@ const Results = () => {
       date,
       coachType,
       fare: FARES[coachType],
+      seats: [],
+      seatTypes: {},
+      totalFare: 0
     };
     sessionStorage.setItem("bookingData", JSON.stringify(bookingData));
     navigate(`/seats/${coachType.toLowerCase()}`);
@@ -79,7 +83,6 @@ const Results = () => {
       <Header />
 
       <div className="max-w-5xl mx-auto px-5 py-8">
-        {/* Search Summary */}
         <div className="glass-card p-6 mb-8 animate-fade-in">
           <h1 className="text-2xl font-extrabold mb-4">
             Trains from {from} to {to}
@@ -96,10 +99,9 @@ const Results = () => {
           </div>
         </div>
 
-        {/* Results */}
         {loading ? (
           <div className="text-center py-20 text-muted-foreground animate-pulse">
-            Analyzing live train data...
+            Analyzing live train data and occupancy heatmaps...
           </div>
         ) : trains.length === 0 ? (
           <div className="text-center py-20 text-muted-foreground">
@@ -109,7 +111,6 @@ const Results = () => {
           <div className="space-y-6">
             {trains.map((train, idx) => (
               <div key={train.number} className="glass-card p-6 animate-panel-in" style={{ animationDelay: `${idx * 100}ms` }}>
-                {/* Header */}
                 <div className="flex justify-between items-start mb-5">
                   <div>
                     <div className="flex items-center gap-3">
@@ -125,12 +126,14 @@ const Results = () => {
                     <div className="text-lg font-bold mt-1">{train.name}</div>
                   </div>
                   <div className="text-right">
-                    <div className="text-xs text-muted-foreground mb-1">WL Confirmation</div>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
+                      <ShieldCheck className="w-3 h-3 text-primary" />
+                      WL Confirmation
+                    </div>
                     <div className="text-lg font-black text-primary">{train.confirmationProb}% Prob.</div>
                   </div>
                 </div>
 
-                {/* Schedule */}
                 <div className="flex justify-between items-center mb-8 p-4 bg-background/30 rounded-2xl border border-border">
                   <div className="text-center">
                     <div className="text-xs text-muted-foreground uppercase tracking-wider">Departure</div>
@@ -149,7 +152,6 @@ const Results = () => {
                   </div>
                 </div>
 
-                {/* Smart Upgrade Suggestion */}
                 {selectedCoaches[train.number] === 'SL' && (
                   <div className="mb-5 p-3 bg-primary/10 border border-primary/30 rounded-xl flex items-center justify-between animate-fade-in">
                     <div className="flex items-center gap-2 text-sm font-bold">
@@ -162,8 +164,7 @@ const Results = () => {
                   </div>
                 )}
 
-                {/* Coaches */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
                   {train.coaches.map((coach) => (
                     <button
                       key={coach}
@@ -176,7 +177,8 @@ const Results = () => {
                     >
                       <div className="text-xs text-muted-foreground font-bold">{coach}</div>
                       <div className="text-lg font-black">₹{FARES[coach]}</div>
-                      <div className="text-[10px] mt-1 opacity-70">
+                      <div className="flex items-center gap-1 text-[10px] mt-1 opacity-70">
+                        <Clock className="w-2 h-2" />
                         {Math.random() > 0.5 ? 'Available' : 'WL 12'}
                       </div>
                     </button>
