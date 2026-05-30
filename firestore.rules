@@ -6,21 +6,10 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
     
-    // Allow authenticated users to read train and coach data
-    match /trains/{trainId} {
-      allow read: if request.auth != null;
-      
-      match /coaches/{coachId} {
-        allow read: if request.auth != null;
-        
-        match /seats/{seatId} {
-          // Allow reading seat status
-          allow read: if request.auth != null;
-          
-          // Allow locking/unlocking seats if authenticated
-          allow write: if request.auth != null;
-        }
-      }
+    // Allow all authenticated users to read and write to the trains collection hierarchy
+    // This ensures seat locking and real-time updates work without permission issues
+    match /trains/{document=**} {
+      allow read, write: if request.auth != null;
     }
   }
 }
