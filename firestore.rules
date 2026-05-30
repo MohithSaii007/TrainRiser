@@ -5,25 +5,22 @@ service cloud.firestore {
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
-
-    // Allow anyone to read train and seat data
+    
+    // Allow authenticated users to read train and coach data
     match /trains/{trainId} {
-      allow read: if true;
+      allow read: if request.auth != null;
       
       match /coaches/{coachId} {
-        allow read: if true;
+        allow read: if request.auth != null;
         
         match /seats/{seatId} {
-          allow read: if true;
-          // Allow authenticated users to lock/unlock seats
+          // Allow reading seat status
+          allow read: if request.auth != null;
+          
+          // Allow locking/unlocking seats if authenticated
           allow write: if request.auth != null;
         }
       }
-    }
-    
-    // Default deny for everything else
-    match /{document=**} {
-      allow read, write: if false;
     }
   }
 }

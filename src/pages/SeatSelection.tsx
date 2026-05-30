@@ -7,7 +7,7 @@ import SeatLockTimer from "@/components/SeatLockTimer";
 import { BookingData, BerthType, BERTH_LABELS, COACH_NAMES, FARES, CoachData, SeatStatus } from "@/types/booking";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Info, Sparkles, Users, MapPin, Accessibility, Group } from "lucide-react";
+import { Info, Sparkles, Users, MapPin, Accessibility, Group, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { lockSeats, releaseSeats, subscribeToCoachSeats } from "@/services/bookingService";
 
@@ -32,7 +32,7 @@ const coachConfigs: Record<string, CoachConfig> = {
 
 const SeatSelection = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { coachType } = useParams<{ coachType: string }>();
   const coachClass = coachType?.toLowerCase() || "3a";
   const config = coachConfigs[coachClass] || coachConfigs["3a"];
@@ -67,7 +67,7 @@ const SeatSelection = () => {
   }, [navigate, coachClass, config.totalSeats]);
 
   useEffect(() => {
-    if (currentCoach && bookingData?.train?.number) {
+    if (currentCoach && bookingData?.train?.number && user) {
       const unsubscribe = subscribeToCoachSeats(
         bookingData.train.number,
         currentCoach.id,
@@ -79,11 +79,17 @@ const SeatSelection = () => {
       );
       return () => unsubscribe();
     }
-  }, [currentCoach, bookingData?.train?.number]);
+  }, [currentCoach, bookingData?.train?.number, user]);
 
   const toggleSeat = async (num: number, type: BerthType) => {
+    if (!user) {
+      toast.error("Please login to select seats");
+      navigate("/auth");
+      return;
+    }
+
     const seatStatus = realTimeSeats[num];
-    if (seatStatus?.status === 'booked' || (seatStatus?.status === 'locked' && seatStatus.lockedBy !== user?.uid)) {
+    if (seatStatus?.status === 'booked' || (seatStatus?.status === 'locked' && seatStatus.lockedBy !== user.uid && seatStatus.expiresAt > Date.now())) {
       toast.error("Seat is currently unavailable");
       return;
     }
@@ -95,7 +101,11 @@ const SeatSelection = () => {
         delete newTypes[num];
         return newTypes;
       });
-      if (user) await releaseSeats(bookingData!.train.number, currentCoach!.id, [num], user.uid);
+      try {
+        await releaseSeats(bookingData!.train.number, currentCoach!.id, [num], user.uid);
+      } catch (e) {
+        console.error("Error releasing seat:", e);
+      }
     } else {
       if (selectedSeats.length >= 6) {
         toast.error("Maximum 6 seats per booking");
@@ -104,16 +114,11 @@ const SeatSelection = () => {
       
       setIsLocking(true);
       try {
-        if (user) {
-          await lockSeats(bookingData!.train.number, currentCoach!.id, [num], user.uid);
-          setSelectedSeats((prev) => [...prev, num]);
-          setSeatTypes((prev) => ({ ...prev, [num]: type }));
-        } else {
-          toast.error("Please login to select seats");
-          navigate("/auth");
-        }
+        await lockSeats(bookingData!.train.number, currentCoach!.id, [num], user.uid);
+        setSelectedSeats((prev) => [...prev, num]);
+        setSeatTypes((prev) => ({ ...prev, [num]: type }));
       } catch (error: any) {
-        toast.error(error.message);
+        toast.error(error.message || "Failed to lock seat. Please try again.");
       } finally {
         setIsLocking(false);
       }
@@ -121,8 +126,30 @@ const SeatSelection = () => {
   };
 
   const selectCluster = async (startNum: number) => {
-    // Select 4 seats in a cluster (e.g., 1, 2, 3, 4)
-    const cluster = [startNum, startNum + 1, startNum + 2, startNum + 3].filter(n => n <= config.totalSeats);
+    if (!user) {
+      toast.error("Please login to select seats");
+      navigate("/auth");
+      return;
+    }
+
+    // Find 4 available seats starting from startNum
+    const cluster: number[] = [];
+    let current = startNum;
+    while (cluster.length < 4 && current <= config.totalSeats) {
+      const status = realTimeSeats[current];
+      const isAvailable = !status || status.status === 'available' || (status.status === 'locked' && status.expiresAt < Date.now());
+      
+      if (isAvailable && !selectedSeats.includes(current)) {
+        cluster.push(current);
+      }
+      current++;
+    }
+
+    if (cluster.length < 4) {
+      toast.error("Not enough adjacent seats available for a cluster");
+      return;
+    }
+
     if (selectedSeats.length + cluster.length > 6) {
       toast.error("Cluster exceeds 6 seat limit");
       return;
@@ -130,13 +157,20 @@ const SeatSelection = () => {
 
     setIsLocking(true);
     try {
-      if (user) {
-        await lockSeats(bookingData!.train.number, currentCoach!.id, cluster, user.uid);
-        setSelectedSeats(prev => [...new Set([...prev, ...cluster])]);
-        toast.success("Family cluster locked!");
-      }
+      await lockSeats(bookingData!.train.number, currentCoach!.id, cluster, user.uid);
+      setSelectedSeats(prev => [...new Set([...prev, ...cluster])]);
+      
+      // Map types for the cluster
+      const newTypes = { ...seatTypes };
+      cluster.forEach(num => {
+        // Simple type mapping for mock purposes
+        newTypes[num] = 'lb'; 
+      });
+      setSeatTypes(newTypes);
+      
+      toast.success("Family cluster locked!");
     } catch (error: any) {
-      toast.error("Some seats in this cluster are unavailable");
+      toast.error(error.message || "Failed to lock cluster");
     } finally {
       setIsLocking(false);
     }
@@ -186,6 +220,14 @@ const SeatSelection = () => {
   const { mainSeats, sideSeats } = generateSeats();
   const legendTypes = [...new Set([...config.pattern, ...config.sidePattern])] as BerthType[];
 
+  if (authLoading) {
+    return (
+      <div className="min-h-screen gradient-bg flex items-center justify-center">
+        <Loader2 className="w-10 h-10 text-primary animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen gradient-bg">
       <Header />
@@ -227,8 +269,8 @@ const SeatSelection = () => {
                     <span className="text-[10px] font-bold uppercase">Booked</span>
                   </div>
                   <div className="flex items-center gap-2 p-2 rounded-lg bg-background/50 border border-border">
-                    <span className="w-3 h-3 rounded-sm bg-yellow-400" />
-                    <span className="text-[10px] font-bold uppercase">RAC</span>
+                    <span className="w-3 h-3 rounded-sm bg-amber-500" />
+                    <span className="text-[10px] font-bold uppercase">Locked</span>
                   </div>
                 </div>
               </div>
@@ -273,8 +315,14 @@ const SeatSelection = () => {
                   <Users className="w-5 h-5 text-primary" />
                   Select Coach
                 </h3>
-                <Button variant="outline" size="sm" className="text-[10px] font-black uppercase tracking-widest border-primary/30 text-primary" onClick={() => selectCluster(1)}>
-                  <Group className="w-3 h-3 mr-2" />
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="text-[10px] font-black uppercase tracking-widest border-primary/30 text-primary" 
+                  onClick={() => selectCluster(1)}
+                  disabled={isLocking}
+                >
+                  {isLocking ? <Loader2 className="w-3 h-3 mr-2 animate-spin" /> : <Group className="w-3 h-3 mr-2" />}
                   Quick Family Cluster
                 </Button>
               </div>
@@ -295,13 +343,15 @@ const SeatSelection = () => {
                     {mainSeats.map(({ num, type }, idx) => {
                       const status = realTimeSeats[num]?.status || 'available';
                       const isLockedByMe = realTimeSeats[num]?.lockedBy === user?.uid;
+                      const isActuallyLocked = status === 'locked' && realTimeSeats[num]?.expiresAt > Date.now();
+                      
                       return (
                         <div key={num} className="animate-scale-in" style={{ animationDelay: `${idx * 10}ms` }}>
                           <SeatButton
                             number={num}
                             type={type}
                             isBooked={status === 'booked'}
-                            isLocked={status === 'locked' && !isLockedByMe}
+                            isLocked={isActuallyLocked && !isLockedByMe}
                             isRAC={status === 'rac'}
                             isWL={status === 'wl'}
                             isSelected={selectedSeats.includes(num)}
@@ -317,13 +367,15 @@ const SeatSelection = () => {
                       {sideSeats.map(({ num, type }, idx) => {
                         const status = realTimeSeats[num]?.status || 'available';
                         const isLockedByMe = realTimeSeats[num]?.lockedBy === user?.uid;
+                        const isActuallyLocked = status === 'locked' && realTimeSeats[num]?.expiresAt > Date.now();
+
                         return (
                           <div key={num} className="animate-scale-in" style={{ animationDelay: `${(mainSeats.length + idx) * 10}ms` }}>
                             <SeatButton
                               number={num}
                               type={type}
                               isBooked={status === 'booked'}
-                              isLocked={status === 'locked' && !isLockedByMe}
+                              isLocked={isActuallyLocked && !isLockedByMe}
                               isRAC={status === 'rac'}
                               isWL={status === 'wl'}
                               isSelected={selectedSeats.includes(num)}
