@@ -7,14 +7,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Users, ShieldCheck, ChevronRight, ArrowLeft } from "lucide-react";
+import { Info, Sparkles, Users } from "lucide-react";
 import { toast } from "sonner";
 
 const PassengerDetails = () => {
   const navigate = useNavigate();
   const [bookingData, setBookingData] = useState<BookingData | null>(null);
   const [passengers, setPassengers] = useState<Passenger[]>([]);
-  const [contactInfo, setContactInfo] = useState({ mobile: "", email: "" });
+  const [errors, setErrors] = useState<Record<number, { name?: string; age?: string }>>({});
 
   useEffect(() => {
     const data = sessionStorage.getItem("bookingData");
@@ -25,9 +25,6 @@ const PassengerDetails = () => {
       const initialPassengers: Passenger[] = parsed.seats.map((seatNum) => ({
         name: "",
         age: "",
-        gender: "male",
-        mobile: "",
-        email: "",
         seatNumber: seatNum,
         berthType: parsed.seatTypes[seatNum] || "lb",
         preference: parsed.seatTypes[seatNum] as BerthType,
@@ -42,132 +39,151 @@ const PassengerDetails = () => {
     setPassengers((prev) =>
       prev.map((p, i) => (i === index ? { ...p, [field]: value } : p))
     );
+    if (field === 'age') {
+      const age = parseInt(value);
+      if (age > 60) {
+        toast.info(`Senior citizen detected. We'll prioritize Lower Berth for ${passengers[index].name || 'this passenger'}.`, {
+          icon: <Sparkles className="w-4 h-4 text-primary" />
+        });
+      }
+    }
+    setErrors((prev) => ({
+      ...prev,
+      [index]: { ...prev[index], [field]: undefined },
+    }));
+  };
+
+  const validate = (): boolean => {
+    const newErrors: Record<number, { name?: string; age?: string }> = {};
+    let isValid = true;
+
+    passengers.forEach((p, i) => {
+      const errs: { name?: string; age?: string } = {};
+      if (!p.name.trim()) { errs.name = "Name is required"; isValid = false; }
+      if (!p.age.trim()) { errs.age = "Age is required"; isValid = false; }
+      else {
+        const ageNum = parseInt(p.age, 10);
+        if (isNaN(ageNum) || ageNum < 1 || ageNum > 120) { errs.age = "Invalid age"; isValid = false; }
+      }
+      if (Object.keys(errs).length > 0) newErrors[i] = errs;
+    });
+
+    setErrors(newErrors);
+    return isValid;
   };
 
   const handleContinue = () => {
-    const isAnyEmpty = passengers.some(p => !p.name || !p.age);
-    if (isAnyEmpty || !contactInfo.mobile || !contactInfo.email) {
-      toast.error("Please fill all passenger and contact details");
-      return;
-    }
-
-    const updatedData = { 
-      ...bookingData!, 
-      passengers: passengers.map(p => ({ ...p, mobile: contactInfo.mobile, email: contactInfo.email })) 
-    };
+    if (!validate()) return;
+    const updatedData = { ...bookingData, passengers };
     sessionStorage.setItem("bookingData", JSON.stringify(updatedData));
-    navigate("/review");
+    navigate("/booking");
   };
 
   if (!bookingData) return null;
 
   return (
-    <div className="min-h-screen bg-[#f4f7f4]">
-      <div className="bg-[#006633] text-white">
-        <Header />
-        <div className="max-w-4xl mx-auto px-5 py-6">
-          <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-sm opacity-80 mb-4 hover:opacity-100">
-            <ArrowLeft className="w-4 h-4" />
-            Back to Seat Selection
-          </button>
-          <h1 className="text-2xl font-bold">Passenger Details</h1>
-          <p className="text-sm opacity-80">Coach {bookingData.coachId} | {bookingData.seats.length} Seats Selected</p>
+    <div className="min-h-screen gradient-bg">
+      <Header />
+
+      <div className="max-w-4xl mx-auto px-5 py-8">
+        <div className="glass-card p-8 animate-panel-in">
+          <div className="flex justify-between items-start mb-8">
+            <div>
+              <h2 className="text-3xl font-black text-primary">Passenger Details</h2>
+              <p className="text-muted-foreground mt-1">Smart grouping enabled for your selection</p>
+            </div>
+            <Badge className="bg-primary/20 text-primary border-primary/30 px-4 py-2">
+              <Users className="w-4 h-4 mr-2" />
+              {passengers.length} Passengers
+            </Badge>
+          </div>
+
+          {/* Smart Grouping Info */}
+          <div className="mb-8 p-4 rounded-2xl bg-primary/5 border border-primary/20 flex items-start gap-3">
+            <Sparkles className="w-5 h-5 text-primary shrink-0 mt-1" />
+            <div>
+              <p className="text-sm font-bold text-primary">Family Grouping AI Active</p>
+              <p className="text-xs text-muted-foreground">We've automatically clustered your seats in Coach {bookingData.coach} to ensure you stay together.</p>
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            {passengers.map((passenger, index) => (
+              <div key={passenger.seatNumber} className="p-6 rounded-2xl border border-border bg-card/30 hover:border-primary/30 transition-colors group">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-4">
+                    <div className={`w-12 h-12 rounded-xl seat-${passenger.berthType} border-2 border-black flex items-center justify-center font-black text-xl text-gray-900 shadow-lg group-hover:scale-110 transition-transform`}>
+                      {passenger.seatNumber}
+                    </div>
+                    <div>
+                      <p className="font-black text-lg">Passenger {index + 1}</p>
+                      <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
+                        {BERTH_LABELS[passenger.berthType as BerthType]}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid md:grid-cols-3 gap-6">
+                  <div className="md:col-span-1">
+                    <Label className="text-xs font-black uppercase tracking-wider mb-2 block opacity-70">Full Name</Label>
+                    <Input
+                      value={passenger.name}
+                      onChange={(e) => updatePassenger(index, "name", e.target.value)}
+                      placeholder="As per ID proof"
+                      className="rounded-xl py-6 bg-background/50 border-border focus:border-primary"
+                    />
+                    {errors[index]?.name && <p className="text-destructive text-[10px] font-bold mt-1 uppercase">{errors[index].name}</p>}
+                  </div>
+
+                  <div>
+                    <Label className="text-xs font-black uppercase tracking-wider mb-2 block opacity-70">Age</Label>
+                    <Input
+                      type="number"
+                      value={passenger.age}
+                      onChange={(e) => updatePassenger(index, "age", e.target.value)}
+                      placeholder="Age"
+                      className="rounded-xl py-6 bg-background/50 border-border focus:border-primary"
+                    />
+                    {errors[index]?.age && <p className="text-destructive text-[10px] font-bold mt-1 uppercase">{errors[index].age}</p>}
+                  </div>
+
+                  <div>
+                    <Label className="text-xs font-black uppercase tracking-wider mb-2 block opacity-70">Berth Preference</Label>
+                    <Select 
+                      value={passenger.preference} 
+                      onValueChange={(val) => updatePassenger(index, "preference", val)}
+                    >
+                      <SelectTrigger className="rounded-xl py-6 bg-background/50 border-border">
+                        <SelectValue placeholder="Select Preference" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(BERTH_LABELS).map(([key, label]) => (
+                          <SelectItem key={key} value={key}>{label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-10 p-6 rounded-2xl bg-gradient-to-br from-background to-primary/5 border border-border">
+            <div className="flex justify-between items-center text-2xl font-black">
+              <span className="text-muted-foreground text-lg">Total Payable</span>
+              <span className="text-primary">₹{bookingData.totalFare}</span>
+            </div>
+          </div>
+
+          <Button
+            onClick={handleContinue}
+            className="w-full mt-8 py-8 text-xl font-black rounded-2xl btn-primary-gradient shadow-xl shadow-primary/20 hover:scale-[1.01] transition-transform"
+          >
+            Review Booking
+          </Button>
         </div>
       </div>
-
-      <main className="max-w-4xl mx-auto px-5 py-8">
-        <div className="space-y-6">
-          {passengers.map((passenger, index) => (
-            <div key={index} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-8 h-8 rounded-full bg-green-100 text-[#006633] flex items-center justify-center font-bold text-sm">
-                  {index + 1}
-                </div>
-                <h3 className="font-bold text-gray-800">Passenger {index + 1} (Seat {passenger.seatNumber})</h3>
-                <Badge variant="outline" className="text-[10px] uppercase">{BERTH_LABELS[passenger.berthType as BerthType]}</Badge>
-              </div>
-
-              <div className="grid md:grid-cols-3 gap-6">
-                <div className="md:col-span-1">
-                  <Label className="text-xs font-bold text-gray-500 uppercase mb-2 block">Full Name</Label>
-                  <Input
-                    value={passenger.name}
-                    onChange={(e) => updatePassenger(index, "name", e.target.value)}
-                    placeholder="Enter Name"
-                    className="rounded-lg border-gray-200"
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs font-bold text-gray-500 uppercase mb-2 block">Age</Label>
-                  <Input
-                    type="number"
-                    value={passenger.age}
-                    onChange={(e) => updatePassenger(index, "age", e.target.value)}
-                    placeholder="Age"
-                    className="rounded-lg border-gray-200"
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs font-bold text-gray-500 uppercase mb-2 block">Gender</Label>
-                  <Select 
-                    value={passenger.gender} 
-                    onValueChange={(val) => updatePassenger(index, "gender", val)}
-                  >
-                    <SelectTrigger className="rounded-lg border-gray-200">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="male">Male</SelectItem>
-                      <SelectItem value="female">Female</SelectItem>
-                      <SelectItem value="other">Other</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </div>
-          ))}
-
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-            <h3 className="font-bold text-gray-800 mb-6">Contact Information</h3>
-            <div className="grid md:grid-cols-2 gap-6">
-              <div>
-                <Label className="text-xs font-bold text-gray-500 uppercase mb-2 block">Mobile Number</Label>
-                <Input
-                  type="tel"
-                  value={contactInfo.mobile}
-                  onChange={(e) => setContactInfo({ ...contactInfo, mobile: e.target.value })}
-                  placeholder="10-digit mobile number"
-                  className="rounded-lg border-gray-200"
-                />
-              </div>
-              <div>
-                <Label className="text-xs font-bold text-gray-500 uppercase mb-2 block">Email Address</Label>
-                <Input
-                  type="email"
-                  value={contactInfo.email}
-                  onChange={(e) => setContactInfo({ ...contactInfo, email: e.target.value })}
-                  placeholder="Email for ticket delivery"
-                  className="rounded-lg border-gray-200"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-            <div>
-              <div className="text-xs text-gray-500 uppercase font-bold">Total Amount</div>
-              <div className="text-2xl font-black text-[#006633]">₹{bookingData.totalFare}</div>
-            </div>
-            <Button 
-              onClick={handleContinue}
-              className="bg-[#006633] hover:bg-[#004d26] text-white font-black px-10 py-6 rounded-xl shadow-lg shadow-green-900/20"
-            >
-              REVIEW BOOKING
-              <ChevronRight className="w-5 h-5 ml-1" />
-            </Button>
-          </div>
-        </div>
-      </main>
     </div>
   );
 };

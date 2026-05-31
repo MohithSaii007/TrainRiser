@@ -2,11 +2,12 @@ import { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import Header from "@/components/Header";
 import SeatButton from "@/components/SeatButton";
+import CoachSelector from "@/components/CoachSelector";
 import SeatLockTimer from "@/components/SeatLockTimer";
-import { BookingData, BerthType, BERTH_LABELS, FARES, SeatStatus } from "@/types/booking";
+import { BookingData, BerthType, BERTH_LABELS, COACH_NAMES, FARES, CoachData, SeatStatus } from "@/types/booking";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Loader2, Users, Info, ShieldCheck, ChevronRight } from "lucide-react";
+import { Info, Sparkles, Users, MapPin, Accessibility, Group, Loader2, MousePointer2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { lockSeats, releaseSeats, subscribeToCoachSeats } from "@/services/bookingService";
 
@@ -22,41 +23,58 @@ interface CoachConfig {
 }
 
 const coachConfigs: Record<string, CoachConfig> = {
-  sl: { title: "Sleeper Class", totalSeats: 72, pattern: ["lb", "mb", "ub", "lb", "mb", "ub"], hasSide: true, sidePattern: ["sl", "su"], gridCols: 3, blocks: 9, seatsPerBlock: 6 },
-  "3a": { title: "AC 3 Tier", totalSeats: 64, pattern: ["lb", "mb", "ub", "lb", "mb", "ub"], hasSide: true, sidePattern: ["sl", "su"], gridCols: 3, blocks: 8, seatsPerBlock: 6 },
-  "2a": { title: "AC 2 Tier", totalSeats: 48, pattern: ["lb", "ub", "lb", "ub"], hasSide: true, sidePattern: ["sl", "su"], gridCols: 2, blocks: 8, seatsPerBlock: 4 },
   "1a": { title: "AC 1st Class", totalSeats: 24, pattern: ["lb", "ub"], hasSide: false, sidePattern: [], gridCols: 2, blocks: 12, seatsPerBlock: 2 },
+  "2a": { title: "AC 2 Tier", totalSeats: 54, pattern: ["lb", "ub", "lb", "ub"], hasSide: true, sidePattern: ["sl", "su"], gridCols: 2, blocks: 9, seatsPerBlock: 4 },
+  "3a": { title: "AC 3 Tier", totalSeats: 72, pattern: ["lb", "mb", "ub", "lb", "mb", "ub"], hasSide: true, sidePattern: ["sl", "su"], gridCols: 3, blocks: 9, seatsPerBlock: 6 },
+  sl: { title: "Sleeper Class", totalSeats: 72, pattern: ["lb", "mb", "ub", "lb", "mb", "ub"], hasSide: true, sidePattern: ["sl", "su"], gridCols: 3, blocks: 9, seatsPerBlock: 6 },
+  cc: { title: "AC Chair Car", totalSeats: 60, pattern: ["cc", "cc", "cc"], hasSide: false, sidePattern: [], gridCols: 3, blocks: 20, seatsPerBlock: 3 },
 };
 
 const SeatSelection = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { coachType } = useParams<{ coachType: string }>();
-  const coachClass = coachType?.toLowerCase() || "sl";
-  const config = coachConfigs[coachClass] || coachConfigs["sl"];
+  const coachClass = coachType?.toLowerCase() || "3a";
+  const config = coachConfigs[coachClass] || coachConfigs["3a"];
 
   const [bookingData, setBookingData] = useState<BookingData | null>(null);
   const [selectedSeats, setSelectedSeats] = useState<number[]>([]);
   const [seatTypes, setSeatTypes] = useState<Record<number, BerthType>>({});
+  const [currentCoach, setCurrentCoach] = useState<CoachData | null>(null);
+  const [coaches, setCoaches] = useState<CoachData[]>([]);
   const [realTimeSeats, setRealTimeSeats] = useState<Record<number, SeatStatus>>({});
   const [isLocking, setIsLocking] = useState(false);
+  const [useFallback, setUseFallback] = useState(false);
 
-  const effectiveUserId = user?.uid || "anonymous";
+  const [anonymousId] = useState(() => `anon_${Math.random().toString(36).substr(2, 9)}`);
+  const effectiveUserId = user?.uid || anonymousId;
 
   useEffect(() => {
     const data = sessionStorage.getItem("bookingData");
     if (data) {
-      setBookingData(JSON.parse(data));
+      const parsed = JSON.parse(data);
+      setBookingData(parsed);
+      
+      const prefix = coachClass.toUpperCase() === 'SL' ? 'S' : coachClass.toUpperCase() === '3A' ? 'B' : coachClass.toUpperCase() === '2A' ? 'A' : 'H';
+      const mockCoaches: CoachData[] = Array.from({ length: 5 }, (_, i) => ({
+        id: `${prefix}${i + 1}`,
+        type: coachClass.toUpperCase(),
+        occupancy: Math.floor(Math.random() * 80) + 10,
+        availableSeats: Math.floor(Math.random() * 30) + 5,
+        totalSeats: config.totalSeats
+      }));
+      setCoaches(mockCoaches);
+      setCurrentCoach(mockCoaches[0]);
     } else {
       navigate("/");
     }
-  }, [navigate]);
+  }, [navigate, coachClass, config.totalSeats]);
 
   useEffect(() => {
-    if (bookingData?.train?.number && bookingData?.coachId) {
+    if (currentCoach && bookingData?.train?.number && !useFallback) {
       const unsubscribe = subscribeToCoachSeats(
         bookingData.train.number,
-        bookingData.coachId,
+        currentCoach.id,
         (seats) => {
           const seatMap: Record<number, SeatStatus> = {};
           seats.forEach(s => seatMap[s.number] = s);
@@ -65,29 +83,103 @@ const SeatSelection = () => {
       );
       return () => unsubscribe();
     }
-  }, [bookingData]);
+  }, [currentCoach, bookingData?.train?.number, useFallback]);
 
   const toggleSeat = async (num: number, type: BerthType) => {
     const seatStatus = realTimeSeats[num];
-    if (seatStatus?.status === 'booked') {
-      toast.error("Seat is already booked");
+    if (seatStatus?.status === 'booked' || (seatStatus?.status === 'locked' && seatStatus.lockedBy !== effectiveUserId && seatStatus.expiresAt > Date.now())) {
+      toast.error("Seat is currently unavailable");
       return;
     }
 
     if (selectedSeats.includes(num)) {
-      setSelectedSeats(prev => prev.filter(n => n !== num));
-      setSeatTypes(prev => {
-        const next = { ...prev };
-        delete next[num];
-        return next;
+      setSelectedSeats((prev) => prev.filter((n) => n !== num));
+      setSeatTypes((prev) => {
+        const newTypes = { ...prev };
+        delete newTypes[num];
+        return newTypes;
       });
+      
+      if (!useFallback) {
+        try {
+          await releaseSeats(bookingData!.train.number, currentCoach!.id, [num], effectiveUserId);
+        } catch (e) {
+          console.error("Error releasing seat:", e);
+        }
+      }
     } else {
       if (selectedSeats.length >= 6) {
-        toast.error("Maximum 6 seats allowed per booking");
+        toast.error("Maximum 6 seats per booking");
         return;
       }
-      setSelectedSeats(prev => [...prev, num]);
-      setSeatTypes(prev => ({ ...prev, [num]: type }));
+      
+      setIsLocking(true);
+      try {
+        if (!useFallback) {
+          await lockSeats(bookingData!.train.number, currentCoach!.id, [num], effectiveUserId);
+        }
+        setSelectedSeats((prev) => [...prev, num]);
+        setSeatTypes((prev) => ({ ...prev, [num]: type }));
+      } catch (error: any) {
+        console.error("Locking failed, switching to fallback:", error);
+        setUseFallback(true);
+        // Allow selection in fallback mode
+        setSelectedSeats((prev) => [...prev, num]);
+        setSeatTypes((prev) => ({ ...prev, [num]: type }));
+        toast.info("Using local selection mode (Database offline)");
+      } finally {
+        setIsLocking(false);
+      }
+    }
+  };
+
+  const selectQuickSeats = async (count: number) => {
+    const cluster: number[] = [];
+    let current = 1;
+    while (cluster.length < count && current <= config.totalSeats) {
+      const status = realTimeSeats[current];
+      const isAvailable = !status || status.status === 'available' || (status.status === 'locked' && status.expiresAt < Date.now());
+      
+      if (isAvailable && !selectedSeats.includes(current)) {
+        cluster.push(current);
+      }
+      current++;
+    }
+
+    if (cluster.length < count) {
+      toast.error(`Not enough seats available to select ${count} seats`);
+      return;
+    }
+
+    if (selectedSeats.length + cluster.length > 6) {
+      toast.error("Selection exceeds 6 seat limit");
+      return;
+    }
+
+    setIsLocking(true);
+    try {
+      if (!useFallback) {
+        await lockSeats(bookingData!.train.number, currentCoach!.id, cluster, effectiveUserId);
+      }
+      setSelectedSeats(prev => [...new Set([...prev, ...cluster])]);
+      
+      const newTypes = { ...seatTypes };
+      cluster.forEach(num => {
+        const posInBlock = (num - 1) % (config.seatsPerBlock + (config.hasSide ? config.sidePattern.length : 0));
+        if (posInBlock < config.seatsPerBlock) {
+          newTypes[num] = config.pattern[posInBlock % config.pattern.length];
+        } else {
+          newTypes[num] = config.sidePattern[posInBlock - config.seatsPerBlock];
+        }
+      });
+      setSeatTypes(newTypes);
+      toast.success(`${count} seats selected!`);
+    } catch (error: any) {
+      setUseFallback(true);
+      setSelectedSeats(prev => [...new Set([...prev, ...cluster])]);
+      toast.info("Using local selection mode");
+    } finally {
+      setIsLocking(false);
     }
   };
 
@@ -97,171 +189,218 @@ const SeatSelection = () => {
       return;
     }
 
-    const fare = bookingData!.fare;
-    const gst = Math.round(fare * 0.05 * selectedSeats.length);
-    const totalFare = (fare * selectedSeats.length) + gst;
-
+    const farePerSeat = FARES[coachClass.toUpperCase()] || 460;
     const updatedData = {
       ...bookingData!,
+      coach: currentCoach?.id || "",
       seats: selectedSeats.sort((a, b) => a - b),
       seatTypes,
-      gst,
-      totalFare,
+      fare: farePerSeat,
+      totalFare: selectedSeats.length * farePerSeat,
+      lockExpiresAt: Date.now() + 300000,
     };
     sessionStorage.setItem("bookingData", JSON.stringify(updatedData));
     navigate("/passengers");
   };
 
   const generateSeats = () => {
-    const blocks = [];
+    const mainSeats: { num: number; type: BerthType }[] = [];
+    const sideSeats: { num: number; type: BerthType }[] = [];
     let seatNo = 1;
 
-    for (let b = 0; b < config.blocks; b++) {
-      const main = [];
+    for (let block = 0; block < config.blocks; block++) {
       for (let i = 0; i < config.seatsPerBlock; i++) {
-        main.push({ num: seatNo, type: config.pattern[i % config.pattern.length] });
+        const typeIndex = i % config.pattern.length;
+        mainSeats.push({ num: seatNo, type: config.pattern[typeIndex] });
         seatNo++;
       }
-      const side = [];
       if (config.hasSide) {
         for (const type of config.sidePattern) {
-          side.push({ num: seatNo, type });
+          sideSeats.push({ num: seatNo, type });
           seatNo++;
         }
       }
-      blocks.push({ main, side });
     }
-    return blocks;
+    return { mainSeats, sideSeats };
   };
 
-  const blocks = generateSeats();
+  const { mainSeats, sideSeats } = generateSeats();
+  const legendTypes = [...new Set([...config.pattern, ...config.sidePattern])] as BerthType[];
 
-  if (!bookingData) return null;
+  if (authLoading) {
+    return (
+      <div className="min-h-screen gradient-bg flex items-center justify-center">
+        <Loader2 className="w-10 h-10 text-primary animate-spin" />
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-[#f4f7f4]">
-      <div className="bg-[#006633] text-white sticky top-0 z-50">
-        <Header />
-        <div className="max-w-5xl mx-auto px-5 py-4 flex justify-between items-center">
-          <div>
-            <h1 className="text-lg font-bold">Select Seats - {bookingData.coachId}</h1>
-            <p className="text-xs opacity-80">{bookingData.train.name} | {COACH_NAMES[bookingData.coachType]}</p>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="text-right">
-              <div className="text-xs opacity-70 uppercase font-bold">Selected</div>
-              <div className="text-lg font-black">{selectedSeats.length} / 6</div>
-            </div>
-          </div>
-        </div>
-      </div>
+    <div className="min-h-screen gradient-bg">
+      <Header />
 
-      <main className="max-w-7xl mx-auto px-5 py-8">
-        <div className="grid lg:grid-cols-4 gap-8">
-          <div className="lg:col-span-3 space-y-6">
-            <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 overflow-x-auto">
-              <div className="min-w-[800px] flex flex-col gap-12">
-                {blocks.map((block, bIdx) => (
-                  <div key={bIdx} className="flex items-center gap-16 pb-12 border-b border-gray-50 last:border-0">
-                    <div className="grid grid-cols-3 gap-4 flex-1">
-                      {block.main.map((seat) => {
-                        const status = realTimeSeats[seat.num]?.status || 'available';
+      <div className="max-w-7xl mx-auto px-5 py-8">
+        <div className="flex flex-col lg:flex-row gap-8">
+          
+          <div className="lg:w-80 shrink-0 space-y-6">
+            <div className="glass-card p-6 animate-slide-in-left">
+              <h2 className="text-2xl font-black text-primary mb-2">{config.title}</h2>
+              <div className="text-sm text-muted-foreground space-y-1">
+                <p className="font-bold text-foreground">{bookingData?.train?.number} - {bookingData?.train?.name}</p>
+                <div className="flex items-center gap-2 mt-2">
+                  <MapPin className="w-4 h-4 text-primary" />
+                  <span>{bookingData?.from} → {bookingData?.to}</span>
+                </div>
+              </div>
+
+              <div className="mt-6 space-y-4">
+                <div className="p-4 rounded-xl bg-primary/5 border border-primary/20">
+                  <div className="flex items-center gap-2 text-xs font-bold text-primary mb-2">
+                    <Accessibility className="w-3 h-3" />
+                    ACCESSIBILITY INFO
+                  </div>
+                  <p className="text-xs leading-relaxed">
+                    Lower berths 1-4 are reserved for elderly and wheelchair assistance.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  {legendTypes.map((type) => (
+                    <div key={type} className="flex items-center gap-2 p-2 rounded-lg bg-background/50 border border-border">
+                      <span className={`w-3 h-3 rounded-sm seat-${type}`} />
+                      <span className="text-[10px] font-bold uppercase">{type}</span>
+                    </div>
+                  ))}
+                  <div className="flex items-center gap-2 p-2 rounded-lg bg-background/50 border border-border">
+                    <span className="w-3 h-3 rounded-sm bg-red-500" />
+                    <span className="text-[10px] font-bold uppercase">Booked</span>
+                  </div>
+                  <div className="flex items-center gap-2 p-2 rounded-lg bg-background/50 border border-border">
+                    <span className="w-3 h-3 rounded-sm bg-amber-500" />
+                    <span className="text-[10px] font-bold uppercase">Locked</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {selectedSeats.length > 0 && (
+              <div className="glass-card p-6 animate-scale-in border-primary/30 shadow-xl shadow-primary/10">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="font-black text-lg">Selection</h3>
+                  <SeatLockTimer onExpire={() => {
+                    toast.error("Seat lock expired. Please re-select.");
+                    setSelectedSeats([]);
+                  }} />
+                </div>
+                
+                <div className="space-y-3 mb-6">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Coach</span>
+                    <span className="font-bold">{currentCoach?.id}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Seats</span>
+                    <span className="font-bold">{selectedSeats.join(", ")}</span>
+                  </div>
+                  <div className="pt-3 border-t border-border flex justify-between items-center">
+                    <span className="font-bold">Total Fare</span>
+                    <span className="text-xl font-black text-primary">₹{selectedSeats.length * (bookingData?.fare || 0)}</span>
+                  </div>
+                </div>
+
+                <Button onClick={handleProceed} className="w-full py-6 btn-primary-gradient font-black rounded-2xl shadow-lg shadow-primary/20">
+                  Confirm & Continue
+                </Button>
+              </div>
+            )}
+          </div>
+
+          <div className="flex-1 space-y-6">
+            <div className="glass-card p-6 animate-panel-in">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-black flex items-center gap-2">
+                  <Users className="w-5 h-5 text-primary" />
+                  Select Coach
+                </h3>
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="text-[10px] font-black uppercase tracking-widest border-primary/30 text-primary" 
+                    onClick={() => selectQuickSeats(4)}
+                    disabled={isLocking}
+                  >
+                    {isLocking ? <Loader2 className="w-3 h-3 mr-2 animate-spin" /> : <Group className="w-3 h-3 mr-2" />}
+                    Family Cluster
+                  </Button>
+                </div>
+              </div>
+              <CoachSelector 
+                coaches={coaches} 
+                selectedId={currentCoach?.id || ""} 
+                onSelect={setCurrentCoach} 
+              />
+            </div>
+
+            <div className="glass-card p-8 animate-scale-in overflow-x-auto">
+              <div className="min-w-[600px]">
+                <div className="flex items-center justify-center gap-12">
+                  <div 
+                    className="grid gap-6 p-8 border-x-8 border-primary/20 rounded-3xl bg-gradient-to-b from-primary/5 to-transparent"
+                    style={{ gridTemplateColumns: `repeat(${config.gridCols}, minmax(80px, 1fr))` }}
+                  >
+                    {mainSeats.map(({ num, type }, idx) => {
+                      const status = realTimeSeats[num]?.status || 'available';
+                      const isLockedByMe = realTimeSeats[num]?.lockedBy === effectiveUserId;
+                      const isActuallyLocked = status === 'locked' && realTimeSeats[num]?.expiresAt > Date.now();
+                      
+                      return (
+                        <div key={num} className="animate-scale-in" style={{ animationDelay: `${idx * 10}ms` }}>
+                          <SeatButton
+                            number={num}
+                            type={type}
+                            isBooked={status === 'booked'}
+                            isLocked={isActuallyLocked && !isLockedByMe}
+                            isRAC={status === 'rac'}
+                            isWL={status === 'wl'}
+                            isSelected={selectedSeats.includes(num)}
+                            onClick={() => toggleSeat(num, type)}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {config.hasSide && (
+                    <div className="flex flex-col gap-6 p-4 border-l-4 border-dashed border-primary/20">
+                      {sideSeats.map(({ num, type }, idx) => {
+                        const status = realTimeSeats[num]?.status || 'available';
+                        const isLockedByMe = realTimeSeats[num]?.lockedBy === effectiveUserId;
+                        const isActuallyLocked = status === 'locked' && realTimeSeats[num]?.expiresAt > Date.now();
+
                         return (
-                          <div key={seat.num} className="flex flex-col items-center gap-1">
+                          <div key={num} className="animate-scale-in" style={{ animationDelay: `${(mainSeats.length + idx) * 10}ms` }}>
                             <SeatButton
-                              number={seat.num}
-                              type={seat.type}
+                              number={num}
+                              type={type}
                               isBooked={status === 'booked'}
-                              isSelected={selectedSeats.includes(seat.num)}
+                              isLocked={isActuallyLocked && !isLockedByMe}
                               isRAC={status === 'rac'}
-                              onClick={() => toggleSeat(seat.num, seat.type)}
+                              isWL={status === 'wl'}
+                              isSelected={selectedSeats.includes(num)}
+                              onClick={() => toggleSeat(num, type)}
                             />
-                            <span className="text-[10px] font-bold text-gray-400 uppercase">{seat.type}</span>
                           </div>
                         );
                       })}
                     </div>
-                    {block.side.length > 0 && (
-                      <div className="flex flex-col gap-4 border-l-2 border-dashed border-gray-100 pl-12">
-                        {block.side.map((seat) => {
-                          const status = realTimeSeats[seat.num]?.status || 'available';
-                          return (
-                            <div key={seat.num} className="flex flex-col items-center gap-1">
-                              <SeatButton
-                                number={seat.num}
-                                type={seat.type}
-                                isBooked={status === 'booked'}
-                                isSelected={selectedSeats.includes(seat.num)}
-                                isRAC={status === 'rac'}
-                                onClick={() => toggleSeat(seat.num, seat.type)}
-                              />
-                              <span className="text-[10px] font-bold text-gray-400 uppercase">{seat.type}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-6">
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 sticky top-32">
-              <h3 className="font-bold text-gray-800 mb-6">Fare Details</h3>
-              <div className="space-y-4 mb-8">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">Coach</span>
-                  <span className="font-bold">{bookingData.coachId}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">Seats</span>
-                  <span className="font-bold">{selectedSeats.length > 0 ? selectedSeats.join(", ") : "None"}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">Base Fare ({selectedSeats.length} × ₹{bookingData.fare})</span>
-                  <span className="font-bold">₹{selectedSeats.length * bookingData.fare}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">GST (5%)</span>
-                  <span className="font-bold">₹{Math.round(selectedSeats.length * bookingData.fare * 0.05)}</span>
-                </div>
-                <div className="pt-4 border-t border-gray-100 flex justify-between items-center">
-                  <span className="font-bold text-gray-800">Total Payable</span>
-                  <span className="text-2xl font-black text-[#006633]">
-                    ₹{Math.round(selectedSeats.length * bookingData.fare * 1.05)}
-                  </span>
-                </div>
-              </div>
-
-              <Button 
-                onClick={handleProceed}
-                disabled={selectedSeats.length === 0}
-                className="w-full py-7 bg-[#006633] hover:bg-[#004d26] text-white font-black text-lg rounded-xl shadow-lg shadow-green-900/20"
-              >
-                CONTINUE
-                <ChevronRight className="w-5 h-5 ml-1" />
-              </Button>
-
-              <div className="mt-6 grid grid-cols-2 gap-2">
-                <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400">
-                  <div className="w-3 h-3 rounded-sm bg-green-500" /> AVAILABLE
-                </div>
-                <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400">
-                  <div className="w-3 h-3 rounded-sm bg-red-500" /> BOOKED
-                </div>
-                <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400">
-                  <div className="w-3 h-3 rounded-sm bg-yellow-500" /> RAC
-                </div>
-                <div className="flex items-center gap-2 text-[10px] font-bold text-gray-400">
-                  <div className="w-3 h-3 rounded-sm bg-blue-500" /> SELECTED
+                  )}
                 </div>
               </div>
             </div>
           </div>
         </div>
-      </main>
+      </div>
     </div>
   );
 };

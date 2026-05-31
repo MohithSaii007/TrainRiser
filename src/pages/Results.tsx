@@ -1,19 +1,10 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import Header from "@/components/Header";
-import { Train, FARES } from "@/types/booking";
+import RouteMap from "@/components/RouteMap";
+import { Train, ScheduleEntry, FARES, COACH_NAMES } from "@/types/booking";
 import { Button } from "@/components/ui/button";
-import { 
-  Clock, 
-  ArrowRight, 
-  Star, 
-  Utensils, 
-  ShieldCheck, 
-  ChevronRight, 
-  Search,
-  Calendar,
-  MapPin
-} from "lucide-react";
+import { Users, TrendingUp, Sparkles, Info, Clock, ShieldCheck, Map as MapIcon, ChevronDown, ChevronUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 
@@ -26,62 +17,83 @@ const Results = () => {
 
   const [trains, setTrains] = useState<Train[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedCoaches, setSelectedCoaches] = useState<Record<string, string>>({});
+  const [expandedRoute, setExpandedRoute] = useState<string | null>(null);
 
   useEffect(() => {
     setLoading(true);
-    // Mocking train data with ConfirmTkt style metadata
-    setTimeout(() => {
-      const mockTrains: Train[] = [
-        {
-          number: "12734",
-          name: "Narayanadri Express",
-          dep: "23:45",
-          arr: "03:10",
-          duration: "3h 25m",
-          fromStation: from,
-          toStation: to,
-          coaches: ["SL", "3A", "2A", "1A"],
-          crowdLevel: 'medium',
-          confirmationProb: 85,
-          rating: 4.2,
-          onTime: "92%",
-          meals: true,
-          platform: "5",
-          availability: {
-            SL: { status: "Available", count: 145, color: 'green' },
-            "3A": { status: "WL", count: 3, color: 'red' },
-            "2A": { status: "Available", count: 12, color: 'green' },
-            "1A": { status: "Available", count: 4, color: 'green' }
+    fetch("/data/schedules.json")
+      .then((res) => res.json())
+      .then((data: ScheduleEntry[]) => {
+        const fromStops = data.filter((s) => s.station_code === from);
+        const toMap = new Map(
+          data.filter((s) => s.station_code === to).map((s) => [s.train_number, s])
+        );
+
+        const matchedTrains: Train[] = [];
+        fromStops.forEach((fs) => {
+          const ts = toMap.get(fs.train_number);
+          if (ts && fs.day <= ts.day) {
+            matchedTrains.push({
+              number: fs.train_number,
+              name: fs.train_name,
+              dep: fs.departure || "—",
+              arr: ts.arrival || ts.departure || "—",
+              coaches: ["SL", "3A", "2A", "1A", "CC"],
+              crowdLevel: Math.random() > 0.7 ? 'high' : Math.random() > 0.4 ? 'medium' : 'low',
+              confirmationProb: Math.floor(Math.random() * 40) + 60,
+              route: [from, "BZA", "WL", to]
+            });
           }
-        },
-        {
-          number: "12864",
-          name: "HWH YPR Express",
-          dep: "10:30",
-          arr: "14:15",
-          duration: "3h 45m",
-          fromStation: from,
-          toStation: to,
-          coaches: ["SL", "3A", "2A"],
-          crowdLevel: 'low',
-          confirmationProb: 95,
-          rating: 4.5,
-          onTime: "98%",
-          meals: false,
-          platform: "2",
-          availability: {
-            SL: { status: "Available", count: 82, color: 'green' },
-            "3A": { status: "RAC", count: 5, color: 'orange' },
-            "2A": { status: "Available", count: 8, color: 'green' }
+        });
+
+        // If no real matches found, generate mock trains for the demo
+        if (matchedTrains.length === 0) {
+          const mockTrainNames = ["Express", "Superfast", "Mail", "Rajdhani", "Shatabdi"];
+          const count = 3 + Math.floor(Math.random() * 3);
+          
+          for (let i = 0; i < count; i++) {
+            const trainNum = (10000 + Math.floor(Math.random() * 90000)).toString();
+            const depHour = Math.floor(Math.random() * 24).toString().padStart(2, '0');
+            const depMin = (Math.floor(Math.random() * 12) * 5).toString().padStart(2, '0');
+            const arrHour = ((parseInt(depHour) + 4 + Math.floor(Math.random() * 12)) % 24).toString().padStart(2, '0');
+            
+            matchedTrains.push({
+              number: trainNum,
+              name: `${from}-${to} ${mockTrainNames[i % mockTrainNames.length]}`,
+              dep: `${depHour}:${depMin}`,
+              arr: `${arrHour}:${depMin}`,
+              coaches: ["SL", "3A", "2A", "1A", "CC"],
+              crowdLevel: Math.random() > 0.7 ? 'high' : Math.random() > 0.4 ? 'medium' : 'low',
+              confirmationProb: Math.floor(Math.random() * 40) + 60,
+              route: [from, "STN1", "STN2", to]
+            });
           }
         }
-      ];
-      setTrains(mockTrains);
-      setLoading(false);
-    }, 1000);
+
+        setTrains(matchedTrains);
+        setLoading(false);
+      })
+      .catch(() => {
+        setLoading(false);
+        toast.error("Failed to load train schedules");
+      });
   }, [from, to]);
 
-  const handleBook = (train: Train, coachType: string) => {
+  const handleCoachSelect = (trainNumber: string, coach: string) => {
+    setSelectedCoaches((prev) => ({
+      ...prev,
+      [trainNumber]: coach,
+    }));
+  };
+
+  const handleBook = (train: Train) => {
+    const coachType = selectedCoaches[train.number];
+    if (!coachType) {
+      toast.error("Please select a coach class");
+      return;
+    }
+
     const bookingData = {
       train,
       from,
@@ -94,145 +106,133 @@ const Results = () => {
       totalFare: 0
     };
     sessionStorage.setItem("bookingData", JSON.stringify(bookingData));
-    navigate(`/train-details?train=${train.number}&coach=${coachType}`);
+    navigate(`/seats/${coachType.toLowerCase()}`);
   };
 
-  return (
-    <div className="min-h-screen bg-[#f4f7f4]">
-      <div className="bg-[#006633] text-white sticky top-0 z-50 shadow-lg">
-        <Header />
-        <div className="max-w-5xl mx-auto px-5 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="flex flex-col">
-              <div className="flex items-center gap-2 text-lg font-bold">
-                <span>{from}</span>
-                <ArrowRight className="w-4 h-4" />
-                <span>{to}</span>
-              </div>
-              <div className="flex items-center gap-2 text-xs opacity-80">
-                <Calendar className="w-3 h-3" />
-                <span>{new Date(date).toLocaleDateString("en-IN", { day: 'numeric', month: 'long', year: 'numeric' })}</span>
-              </div>
-            </div>
-          </div>
-          <Button 
-            variant="outline" 
-            className="bg-white/10 border-white/20 text-white hover:bg-white/20"
-            onClick={() => navigate("/")}
-          >
-            <Search className="w-4 h-4 mr-2" />
-            Modify Search
-          </Button>
-        </div>
-      </div>
+  const mockStops = [
+    { station: from, code: from, arrival: "Start", departure: "22:00", occupancy: 85 },
+    { station: "Intermediate Station 1", code: "INT1", arrival: "04:15", departure: "04:30", occupancy: 65 },
+    { station: "Intermediate Station 2", code: "INT2", arrival: "07:20", departure: "07:22", occupancy: 45 },
+    { station: to, code: to, arrival: "20:00", departure: "End", occupancy: 20 },
+  ];
 
-      <main className="max-w-5xl mx-auto px-5 py-8">
-        <div className="mb-6 flex items-center justify-between">
-          <h2 className="text-xl font-bold text-gray-800">Found {trains.length} trains</h2>
-          <div className="flex gap-2">
-            <Badge variant="secondary" className="bg-white border-gray-200">Fastest</Badge>
-            <Badge variant="secondary" className="bg-white border-gray-200">Earliest</Badge>
+  return (
+    <div className="min-h-screen gradient-bg">
+      <Header />
+
+      <div className="max-w-5xl mx-auto px-5 py-8">
+        <div className="glass-card p-6 mb-8 animate-fade-in">
+          <h1 className="text-2xl font-extrabold mb-4">
+            Trains from {from} to {to}
+          </h1>
+          <div className="flex flex-wrap gap-6 text-sm text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-primary" />
+              <strong>Date:</strong> {new Date(date).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" })}
+            </div>
+            <div className="flex items-center gap-2">
+              <Users className="w-4 h-4 text-primary" />
+              <strong>Route:</strong> {from} → {to}
+            </div>
           </div>
         </div>
 
         {loading ? (
-          <div className="space-y-4">
-            {[1, 2, 3].map(i => (
-              <div key={i} className="h-48 bg-white rounded-xl animate-pulse shadow-sm" />
-            ))}
+          <div className="text-center py-20 text-muted-foreground animate-pulse">
+            Analyzing live train data and occupancy heatmaps...
           </div>
         ) : (
           <div className="space-y-6">
-            {trains.map((train) => (
-              <div key={train.number} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-md transition-shadow">
-                <div className="p-5">
-                  <div className="flex justify-between items-start mb-6">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-[#006633]">{train.number}</span>
-                        <h3 className="text-lg font-bold text-gray-900">{train.name}</h3>
-                      </div>
-                      <div className="flex items-center gap-4 mt-1">
-                        <div className="flex items-center gap-1 text-xs text-gray-500">
-                          <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />
-                          <span>{train.rating}</span>
-                        </div>
-                        <div className="text-xs text-gray-500">On-time: <span className="text-green-600 font-bold">{train.onTime}</span></div>
-                        {train.meals && <Utensils className="w-3 h-3 text-gray-400" />}
-                      </div>
+            {trains.map((train, idx) => (
+              <div key={train.number} className="glass-card p-6 animate-panel-in" style={{ animationDelay: `${idx * 100}ms` }}>
+                <div className="flex justify-between items-start mb-5">
+                  <div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xl font-black text-primary">{train.number}</span>
+                      <Badge variant="outline" className={
+                        train.crowdLevel === 'low' ? 'text-green-500 border-green-500/30 bg-green-500/10' :
+                        train.crowdLevel === 'medium' ? 'text-yellow-500 border-yellow-500/30 bg-yellow-500/10' :
+                        'text-red-500 border-red-500/30 bg-red-500/10'
+                      }>
+                        {train.crowdLevel.toUpperCase()} CROWD
+                      </Badge>
                     </div>
-                    <div className="text-right">
-                      <div className="text-xs text-gray-500">Platform</div>
-                      <div className="text-lg font-bold text-gray-900">{train.platform || "TBA"}</div>
-                    </div>
+                    <div className="text-lg font-bold mt-1">{train.name}</div>
                   </div>
-
-                  <div className="flex justify-between items-center mb-8">
-                    <div className="text-center">
-                      <div className="text-2xl font-black text-gray-900">{train.dep}</div>
-                      <div className="text-xs font-bold text-gray-500 uppercase">{from}</div>
+                  <div className="text-right">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
+                      <ShieldCheck className="w-3 h-3 text-primary" />
+                      WL Confirmation
                     </div>
-                    <div className="flex-1 px-10 flex flex-col items-center">
-                      <div className="text-xs text-gray-400 mb-1">{train.duration}</div>
-                      <div className="w-full h-[2px] bg-gray-100 relative">
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-[#006633]" />
-                      </div>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-2xl font-black text-gray-900">{train.arr}</div>
-                      <div className="text-xs font-bold text-gray-500 uppercase">{to}</div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    {Object.entries(train.availability).map(([coach, data]) => (
-                      <button
-                        key={coach}
-                        onClick={() => handleBook(train, coach)}
-                        className={`p-3 rounded-lg border text-left transition-all hover:scale-[1.02] ${
-                          data.color === 'green' ? 'bg-green-50 border-green-100' :
-                          data.color === 'orange' ? 'bg-orange-50 border-orange-100' :
-                          'bg-red-50 border-red-100'
-                        }`}
-                      >
-                        <div className="flex justify-between items-center mb-1">
-                          <span className="font-bold text-gray-800">{coach}</span>
-                          <span className="text-xs font-bold text-gray-900">₹{FARES[coach]}</span>
-                        </div>
-                        <div className={`text-xs font-black ${
-                          data.color === 'green' ? 'text-green-600' :
-                          data.color === 'orange' ? 'text-orange-600' :
-                          'text-red-600'
-                        }`}>
-                          {data.status} {data.count}
-                        </div>
-                        <div className="text-[10px] text-gray-400 mt-1">
-                          {train.confirmationProb}% Confirmation
-                        </div>
-                      </button>
-                    ))}
+                    <div className="text-lg font-black text-primary">{train.confirmationProb}% Prob.</div>
                   </div>
                 </div>
-                
-                <div className="bg-gray-50 px-5 py-3 flex justify-between items-center border-t border-gray-100">
-                  <div className="flex gap-4">
-                    <button className="text-xs font-bold text-[#006633] hover:underline">Running Status</button>
-                    <button className="text-xs font-bold text-[#006633] hover:underline">Coach Position</button>
+
+                <div className="flex justify-between items-center mb-4 p-4 bg-background/30 rounded-2xl border border-border">
+                  <div className="text-center">
+                    <div className="text-xs text-muted-foreground uppercase tracking-wider">Departure</div>
+                    <div className="text-2xl font-black">{train.dep}</div>
+                    <div className="text-xs font-bold text-primary">{from}</div>
                   </div>
-                  <Button 
-                    size="sm" 
-                    className="bg-[#006633] hover:bg-[#004d26] text-white font-bold rounded-full px-6"
-                    onClick={() => handleBook(train, "SL")}
-                  >
-                    BOOK NOW
-                    <ChevronRight className="w-4 h-4 ml-1" />
-                  </Button>
+                  <div className="flex-1 px-8 relative">
+                    <div className="h-0.5 bg-border w-full relative">
+                      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-primary shadow-[0_0_10px_rgba(16,185,129,0.5)]" />
+                    </div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xs text-muted-foreground uppercase tracking-wider">Arrival</div>
+                    <div className="text-2xl font-black">{train.arr}</div>
+                    <div className="text-xs font-bold text-primary">{to}</div>
+                  </div>
                 </div>
+
+                <button 
+                  onClick={() => setExpandedRoute(expandedRoute === train.number ? null : train.number)}
+                  className="flex items-center gap-2 text-xs font-black text-primary uppercase tracking-widest mb-6 hover:underline"
+                >
+                  <MapIcon className="w-3 h-3" />
+                  {expandedRoute === train.number ? "Hide Live Route" : "View Live Route & Occupancy"}
+                  {expandedRoute === train.number ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                </button>
+
+                {expandedRoute === train.number && (
+                  <div className="mb-8 p-6 rounded-2xl bg-background/50 border border-border animate-accordion-down">
+                    <RouteMap stops={mockStops} currentStationCode={from} />
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+                  {train.coaches.map((coach) => (
+                    <button
+                      key={coach}
+                      onClick={() => handleCoachSelect(train.number, coach)}
+                      className={`p-4 rounded-2xl border-2 transition-all duration-300 text-left ${
+                        selectedCoaches[train.number] === coach
+                          ? "bg-primary/10 border-primary shadow-lg shadow-primary/10"
+                          : "border-border hover:border-primary/50 hover:bg-primary/5"
+                      }`}
+                    >
+                      <div className="text-xs text-muted-foreground font-bold">{coach}</div>
+                      <div className="text-lg font-black">₹{FARES[coach]}</div>
+                      <div className="flex items-center gap-1 text-[10px] mt-1 opacity-70">
+                        <Clock className="w-2 h-2" />
+                        {Math.random() > 0.5 ? 'Available' : 'WL 12'}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+
+                <Button
+                  onClick={() => handleBook(train)}
+                  className="w-full py-6 rounded-2xl btn-primary-gradient font-black text-lg shadow-xl shadow-primary/20 hover:scale-[1.01] transition-transform"
+                >
+                  Visual Seat Selection
+                </Button>
               </div>
             ))}
           </div>
         )}
-      </main>
+      </div>
     </div>
   );
 };
