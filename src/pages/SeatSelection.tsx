@@ -6,6 +6,7 @@ import CoachSelector from "@/components/CoachSelector";
 import SeatLockTimer from "@/components/SeatLockTimer";
 import { BookingData, BerthType, BERTH_LABELS, FARES, CoachData, SeatStatus, SeatInventory } from "@/types/booking";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Sparkles, Users, MapPin, Accessibility, Group, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
