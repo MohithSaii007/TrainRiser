@@ -16,5 +16,9 @@
   { "station_code": "SBC", "train_number": "12657", "train_name": "KSR Bengaluru Mail", "day": 1, "departure": "22:40" },
   { "station_code": "MAS", "train_number": "12657", "train_name": "KSR Bengaluru Mail", "day": 2, "arrival": "04:30" },
   { "station_code": "CSMT", "train_number": "12123", "train_name": "Deccan Queen", "day": 1, "departure": "17:10" },
-  { "station_code": "PUNE", "train_number": "12123", "train_name": "Deccan Queen", "day": 1, "arrival": "20:25" }
+  { "station_code": "PUNE", "train_number": "12123", "train_name": "Deccan Queen", "day": 1, "arrival": "20:25" },
+  { "station_code": "ADI", "train_number": "12901", "train_name": "Gujarat Mail", "day": 1, "departure": "22:00" },
+  { "station_code": "BCT", "train_number": "12901", "train_name": "Gujarat Mail", "day": 2, "arrival": "06:25" },
+  { "station_code": "JP", "train_number": "12955", "train_name": "Mumbai Central Superfast", "day": 1, "departure": "14:00" },
+  { "station_code": "BCT", "train_number": "12955", "train_name": "Mumbai Central Superfast", "day": 2, "arrival": "08:20" }
 ]
