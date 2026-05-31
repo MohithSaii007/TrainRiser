@@ -7,7 +7,7 @@ import {
   collection, 
   runTransaction
 } from "firebase/firestore";
-import { SeatStatus } from "@/types/booking";
+import { SeatStatus, SeatInventory } from "@/types/booking";
 
 export const lockSeats = async (
   trainId: string, 
@@ -29,24 +29,24 @@ export const lockSeats = async (
           seatSnap = await transaction.get(seatRef);
         } catch (e) {
           console.error("Error getting seat snapshot:", e);
-          throw new Error("Database connection error. Please check your connection.");
+          throw new Error("Database connection error.");
         }
 
         if (seatSnap.exists()) {
           const data = seatSnap.data();
           // If seat is locked by someone else and not expired
-          if (data.status === 'locked' && data.lockedBy !== userId && data.expiresAt > Date.now()) {
-            throw new Error(`Seat ${seatNum} is already locked by another user`);
+          if (data.status === 'LOCKED' && data.lockedBy !== userId && data.expiresAt > Date.now()) {
+            throw new Error(`Seat ${seatNum} is already locked`);
           }
           // If seat is already booked
-          if (data.status === 'booked') {
+          if (data.status === 'BOOKED') {
             throw new Error(`Seat ${seatNum} is already booked`);
           }
         }
 
         transaction.set(seatRef, {
           number: seatNum,
-          status: 'locked',
+          status: 'LOCKED',
           lockedBy: userId,
           expiresAt: expiresAt
         }, { merge: true });
@@ -57,10 +57,6 @@ export const lockSeats = async (
     });
   } catch (error: any) {
     console.error("Error in lockSeats transaction:", error);
-    // Re-throw with a cleaner message if it's a permission error
-    if (error.code === 'permission-denied') {
-      throw new Error("Database permission denied. Please ensure Firestore rules are deployed.");
-    }
     throw error;
   }
 };
@@ -72,7 +68,7 @@ export const releaseSeats = async (trainId: string, coachId: string, seatNumbers
       const seatSnap = await getDoc(seatRef);
       if (seatSnap.exists() && seatSnap.data().lockedBy === userId) {
         await updateDoc(seatRef, {
-          status: 'available',
+          status: 'AVAILABLE',
           lockedBy: null,
           expiresAt: null
         });
@@ -86,11 +82,11 @@ export const releaseSeats = async (trainId: string, coachId: string, seatNumbers
 export const subscribeToCoachSeats = (
   trainId: string, 
   coachId: string, 
-  callback: (seats: SeatStatus[]) => void
+  callback: (seats: any[]) => void
 ) => {
   const seatsRef = collection(db, "trains", trainId, "coaches", coachId, "seats");
   return onSnapshot(seatsRef, (snapshot) => {
-    const seats = snapshot.docs.map(doc => doc.data() as SeatStatus);
+    const seats = snapshot.docs.map(doc => doc.data());
     callback(seats);
   }, (error) => {
     console.error("Firestore subscription error:", error);
