@@ -45,6 +45,10 @@ const SeatSelection = () => {
   const [realTimeSeats, setRealTimeSeats] = useState<Record<number, SeatStatus>>({});
   const [isLocking, setIsLocking] = useState(false);
 
+  // Use a stable anonymous ID if user is not logged in
+  const [anonymousId] = useState(() => `anon_${Math.random().toString(36).substr(2, 9)}`);
+  const effectiveUserId = user?.uid || anonymousId;
+
   useEffect(() => {
     const data = sessionStorage.getItem("bookingData");
     if (data) {
@@ -67,7 +71,7 @@ const SeatSelection = () => {
   }, [navigate, coachClass, config.totalSeats]);
 
   useEffect(() => {
-    if (currentCoach && bookingData?.train?.number && user) {
+    if (currentCoach && bookingData?.train?.number) {
       const unsubscribe = subscribeToCoachSeats(
         bookingData.train.number,
         currentCoach.id,
@@ -79,17 +83,11 @@ const SeatSelection = () => {
       );
       return () => unsubscribe();
     }
-  }, [currentCoach, bookingData?.train?.number, user]);
+  }, [currentCoach, bookingData?.train?.number]);
 
   const toggleSeat = async (num: number, type: BerthType) => {
-    if (!user) {
-      toast.error("Please login to select seats");
-      navigate("/auth");
-      return;
-    }
-
     const seatStatus = realTimeSeats[num];
-    if (seatStatus?.status === 'booked' || (seatStatus?.status === 'locked' && seatStatus.lockedBy !== user.uid && seatStatus.expiresAt > Date.now())) {
+    if (seatStatus?.status === 'booked' || (seatStatus?.status === 'locked' && seatStatus.lockedBy !== effectiveUserId && seatStatus.expiresAt > Date.now())) {
       toast.error("Seat is currently unavailable");
       return;
     }
@@ -102,7 +100,7 @@ const SeatSelection = () => {
         return newTypes;
       });
       try {
-        await releaseSeats(bookingData!.train.number, currentCoach!.id, [num], user.uid);
+        await releaseSeats(bookingData!.train.number, currentCoach!.id, [num], effectiveUserId);
       } catch (e) {
         console.error("Error releasing seat:", e);
       }
@@ -114,11 +112,11 @@ const SeatSelection = () => {
       
       setIsLocking(true);
       try {
-        await lockSeats(bookingData!.train.number, currentCoach!.id, [num], user.uid);
+        await lockSeats(bookingData!.train.number, currentCoach!.id, [num], effectiveUserId);
         setSelectedSeats((prev) => [...prev, num]);
         setSeatTypes((prev) => ({ ...prev, [num]: type }));
       } catch (error: any) {
-        toast.error(error.message || "Failed to lock seat. Please try again.");
+        toast.error("Failed to lock seat. Please try again.");
       } finally {
         setIsLocking(false);
       }
@@ -126,12 +124,6 @@ const SeatSelection = () => {
   };
 
   const selectQuickSeats = async (count: number) => {
-    if (!user) {
-      toast.error("Please login to select seats");
-      navigate("/auth");
-      return;
-    }
-
     const cluster: number[] = [];
     let current = 1;
     while (cluster.length < count && current <= config.totalSeats) {
@@ -156,7 +148,7 @@ const SeatSelection = () => {
 
     setIsLocking(true);
     try {
-      await lockSeats(bookingData!.train.number, currentCoach!.id, cluster, user.uid);
+      await lockSeats(bookingData!.train.number, currentCoach!.id, cluster, effectiveUserId);
       setSelectedSeats(prev => [...new Set([...prev, ...cluster])]);
       
       const newTypes = { ...seatTypes };
@@ -174,7 +166,7 @@ const SeatSelection = () => {
       
       toast.success(`${count} seats locked successfully!`);
     } catch (error: any) {
-      toast.error(error.message || "Failed to lock seats");
+      toast.error("Failed to lock seats");
     } finally {
       setIsLocking(false);
     }
@@ -348,7 +340,7 @@ const SeatSelection = () => {
                   >
                     {mainSeats.map(({ num, type }, idx) => {
                       const status = realTimeSeats[num]?.status || 'available';
-                      const isLockedByMe = realTimeSeats[num]?.lockedBy === user?.uid;
+                      const isLockedByMe = realTimeSeats[num]?.lockedBy === effectiveUserId;
                       const isActuallyLocked = status === 'locked' && realTimeSeats[num]?.expiresAt > Date.now();
                       
                       return (
@@ -372,7 +364,7 @@ const SeatSelection = () => {
                     <div className="flex flex-col gap-6 p-4 border-l-4 border-dashed border-primary/20">
                       {sideSeats.map(({ num, type }, idx) => {
                         const status = realTimeSeats[num]?.status || 'available';
-                        const isLockedByMe = realTimeSeats[num]?.lockedBy === user?.uid;
+                        const isLockedByMe = realTimeSeats[num]?.lockedBy === effectiveUserId;
                         const isActuallyLocked = status === 'locked' && realTimeSeats[num]?.expiresAt > Date.now();
 
                         return (
