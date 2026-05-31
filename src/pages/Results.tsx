@@ -21,6 +21,7 @@ const Results = () => {
   const [expandedRoute, setExpandedRoute] = useState<string | null>(null);
 
   useEffect(() => {
+    setLoading(true);
     fetch("/data/schedules.json")
       .then((res) => res.json())
       .then((data: ScheduleEntry[]) => {
@@ -41,14 +42,42 @@ const Results = () => {
               coaches: ["SL", "3A", "2A", "1A", "CC"],
               crowdLevel: Math.random() > 0.7 ? 'high' : Math.random() > 0.4 ? 'medium' : 'low',
               confirmationProb: Math.floor(Math.random() * 40) + 60,
-              route: [from, "BZA", "WL", to] // Mock route
+              route: [from, "BZA", "WL", to]
             });
           }
         });
+
+        // If no real matches found, generate mock trains for the demo
+        if (matchedTrains.length === 0) {
+          const mockTrainNames = ["Express", "Superfast", "Mail", "Rajdhani", "Shatabdi"];
+          const count = 3 + Math.floor(Math.random() * 3);
+          
+          for (let i = 0; i < count; i++) {
+            const trainNum = (10000 + Math.floor(Math.random() * 90000)).toString();
+            const depHour = Math.floor(Math.random() * 24).toString().padStart(2, '0');
+            const depMin = (Math.floor(Math.random() * 12) * 5).toString().padStart(2, '0');
+            const arrHour = ((parseInt(depHour) + 4 + Math.floor(Math.random() * 12)) % 24).toString().padStart(2, '0');
+            
+            matchedTrains.push({
+              number: trainNum,
+              name: `${from}-${to} ${mockTrainNames[i % mockTrainNames.length]}`,
+              dep: `${depHour}:${depMin}`,
+              arr: `${arrHour}:${depMin}`,
+              coaches: ["SL", "3A", "2A", "1A", "CC"],
+              crowdLevel: Math.random() > 0.7 ? 'high' : Math.random() > 0.4 ? 'medium' : 'low',
+              confirmationProb: Math.floor(Math.random() * 40) + 60,
+              route: [from, "STN1", "STN2", to]
+            });
+          }
+        }
+
         setTrains(matchedTrains);
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch(() => {
+        setLoading(false);
+        toast.error("Failed to load train schedules");
+      });
   }, [from, to]);
 
   const handleCoachSelect = (trainNumber: string, coach: string) => {
@@ -81,10 +110,10 @@ const Results = () => {
   };
 
   const mockStops = [
-    { station: "Chennai Central", code: "MAS", arrival: "Start", departure: "22:00", occupancy: 85 },
-    { station: "Vijayawada", code: "BZA", arrival: "04:15", departure: "04:30", occupancy: 65 },
-    { station: "Warangal", code: "WL", arrival: "07:20", departure: "07:22", occupancy: 45 },
-    { station: "New Delhi", code: "NDLS", arrival: "20:00", departure: "End", occupancy: 20 },
+    { station: from, code: from, arrival: "Start", departure: "22:00", occupancy: 85 },
+    { station: "Intermediate Station 1", code: "INT1", arrival: "04:15", departure: "04:30", occupancy: 65 },
+    { station: "Intermediate Station 2", code: "INT2", arrival: "07:20", departure: "07:22", occupancy: 45 },
+    { station: to, code: to, arrival: "20:00", departure: "End", occupancy: 20 },
   ];
 
   return (
@@ -111,10 +140,6 @@ const Results = () => {
         {loading ? (
           <div className="text-center py-20 text-muted-foreground animate-pulse">
             Analyzing live train data and occupancy heatmaps...
-          </div>
-        ) : trains.length === 0 ? (
-          <div className="text-center py-20 text-muted-foreground">
-            No trains found for this route.
           </div>
         ) : (
           <div className="space-y-6">
@@ -173,18 +198,6 @@ const Results = () => {
                 {expandedRoute === train.number && (
                   <div className="mb-8 p-6 rounded-2xl bg-background/50 border border-border animate-accordion-down">
                     <RouteMap stops={mockStops} currentStationCode={from} />
-                  </div>
-                )}
-
-                {selectedCoaches[train.number] === 'SL' && (
-                  <div className="mb-5 p-3 bg-primary/10 border border-primary/30 rounded-xl flex items-center justify-between animate-fade-in">
-                    <div className="flex items-center gap-2 text-sm font-bold">
-                      <Sparkles className="w-4 h-4 text-primary" />
-                      <span>Upgrade to 3A for just ₹{FARES['3A'] - FARES['SL']} more!</span>
-                    </div>
-                    <Button variant="ghost" size="sm" onClick={() => handleCoachSelect(train.number, '3A')} className="text-primary font-black">
-                      UPGRADE
-                    </Button>
                   </div>
                 )}
 
