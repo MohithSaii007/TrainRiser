@@ -14,7 +14,6 @@ import Booking from "./pages/Booking";
 import Payment from "./pages/Payment";
 import Ticket from "./pages/Ticket";
 import PnrStatus from "./pages/PnrStatus";
-import AllTrains from "./pages/AllTrains";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import NotFound from "./pages/NotFound";
@@ -40,7 +39,6 @@ const App = () => (
             <Route path="/payment" element={<Payment />} />
             <Route path="/ticket" element={<Ticket />} />
             <Route path="/pnr-status" element={<PnrStatus />} />
-            <Route path="/all-trains" element={<AllTrains />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
