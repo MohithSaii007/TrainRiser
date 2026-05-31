@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import Header from "@/components/Header";
 import SeatButton from "@/components/SeatButton";
 import SeatLockTimer from "@/components/SeatLockTimer";
-import { BookingData, BerthType, BERTH_LABELS, FARES, SeatStatus, COACH_NAMES } from "@/types/booking";
+import { BookingData, BerthType, BERTH_LABELS, FARES, SeatStatus } from "@/types/booking";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Loader2, Users, Info, ShieldCheck, ChevronRight } from "lucide-react";
