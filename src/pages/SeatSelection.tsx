@@ -7,7 +7,7 @@ import SeatLockTimer from "@/components/SeatLockTimer";
 import { BookingData, BerthType, BERTH_LABELS, COACH_NAMES, FARES, CoachData, SeatStatus } from "@/types/booking";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Info, Sparkles, Users, MapPin, Accessibility, Group, Loader2 } from "lucide-react";
+import { Info, Sparkles, Users, MapPin, Accessibility, Group, Loader2, MousePointer2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { lockSeats, releaseSeats, subscribeToCoachSeats } from "@/services/bookingService";
 
@@ -125,17 +125,16 @@ const SeatSelection = () => {
     }
   };
 
-  const selectCluster = async (startNum: number) => {
+  const selectQuickSeats = async (count: number) => {
     if (!user) {
       toast.error("Please login to select seats");
       navigate("/auth");
       return;
     }
 
-    // Find 4 available seats starting from startNum
     const cluster: number[] = [];
-    let current = startNum;
-    while (cluster.length < 4 && current <= config.totalSeats) {
+    let current = 1;
+    while (cluster.length < count && current <= config.totalSeats) {
       const status = realTimeSeats[current];
       const isAvailable = !status || status.status === 'available' || (status.status === 'locked' && status.expiresAt < Date.now());
       
@@ -145,13 +144,13 @@ const SeatSelection = () => {
       current++;
     }
 
-    if (cluster.length < 4) {
-      toast.error("Not enough adjacent seats available for a cluster");
+    if (cluster.length < count) {
+      toast.error(`Not enough seats available to select ${count} seats`);
       return;
     }
 
     if (selectedSeats.length + cluster.length > 6) {
-      toast.error("Cluster exceeds 6 seat limit");
+      toast.error("Selection exceeds 6 seat limit");
       return;
     }
 
@@ -160,17 +159,23 @@ const SeatSelection = () => {
       await lockSeats(bookingData!.train.number, currentCoach!.id, cluster, user.uid);
       setSelectedSeats(prev => [...new Set([...prev, ...cluster])]);
       
-      // Map types for the cluster
       const newTypes = { ...seatTypes };
       cluster.forEach(num => {
-        // Simple type mapping for mock purposes
-        newTypes[num] = 'lb'; 
+        // Find the type from the pattern
+        const blockIdx = Math.floor((num - 1) / (config.seatsPerBlock + (config.hasSide ? config.sidePattern.length : 0)));
+        const posInBlock = (num - 1) % (config.seatsPerBlock + (config.hasSide ? config.sidePattern.length : 0));
+        
+        if (posInBlock < config.seatsPerBlock) {
+          newTypes[num] = config.pattern[posInBlock % config.pattern.length];
+        } else {
+          newTypes[num] = config.sidePattern[posInBlock - config.seatsPerBlock];
+        }
       });
       setSeatTypes(newTypes);
       
-      toast.success("Family cluster locked!");
+      toast.success(`${count} seats locked successfully!`);
     } catch (error: any) {
-      toast.error(error.message || "Failed to lock cluster");
+      toast.error(error.message || "Failed to lock seats");
     } finally {
       setIsLocking(false);
     }
@@ -315,16 +320,28 @@ const SeatSelection = () => {
                   <Users className="w-5 h-5 text-primary" />
                   Select Coach
                 </h3>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="text-[10px] font-black uppercase tracking-widest border-primary/30 text-primary" 
-                  onClick={() => selectCluster(1)}
-                  disabled={isLocking}
-                >
-                  {isLocking ? <Loader2 className="w-3 h-3 mr-2 animate-spin" /> : <Group className="w-3 h-3 mr-2" />}
-                  Quick Family Cluster
-                </Button>
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="text-[10px] font-black uppercase tracking-widest border-primary/30 text-primary" 
+                    onClick={() => selectQuickSeats(2)}
+                    disabled={isLocking}
+                  >
+                    {isLocking ? <Loader2 className="w-3 h-3 mr-2 animate-spin" /> : <MousePointer2 className="w-3 h-3 mr-2" />}
+                    Select 2 Seats
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="text-[10px] font-black uppercase tracking-widest border-primary/30 text-primary" 
+                    onClick={() => selectQuickSeats(4)}
+                    disabled={isLocking}
+                  >
+                    {isLocking ? <Loader2 className="w-3 h-3 mr-2 animate-spin" /> : <Group className="w-3 h-3 mr-2" />}
+                    Family Cluster
+                  </Button>
+                </div>
               </div>
               <CoachSelector 
                 coaches={coaches} 
