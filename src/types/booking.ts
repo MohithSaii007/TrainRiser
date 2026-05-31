@@ -5,18 +5,10 @@ export interface Station {
   name: string;
 }
 
-export interface ScheduleEntry {
-  station_code: string;
-  train_number: string;
-  train_name: string;
-  day: number;
-  departure?: string;
-  arrival?: string;
-}
-
 export interface CoachData {
   id: string;
   type: string;
+  classType: string; // SL, 3A, 2A, 1A
   occupancy: number;
   availableSeats: number;
   totalSeats: number;
@@ -35,15 +27,25 @@ export interface Train {
   name: string;
   dep: string;
   arr: string;
+  duration: string;
+  fromStation: string;
+  toStation: string;
   coaches: string[];
   crowdLevel: 'low' | 'medium' | 'high';
   confirmationProb?: number;
-  route: string[]; // Array of station codes
+  rating: number;
+  onTime: string; // e.g. "95%"
+  meals: boolean;
+  platform?: string;
+  availability: Record<string, { status: string; count: number; color: 'green' | 'orange' | 'red' }>;
 }
 
 export interface Passenger {
   name: string;
   age: string;
+  gender: 'male' | 'female' | 'other';
+  mobile: string;
+  email: string;
   seatNumber: number;
   berthType: string;
   preference?: BerthType;
@@ -54,14 +56,14 @@ export interface BookingData {
   from: string;
   to: string;
   date: string;
-  coach: string;
-  coachType: string;
+  coachId: string; // e.g. S1
+  coachType: string; // e.g. SL
   fare: number;
+  gst: number;
   seats: number[];
   seatTypes: Record<number, string>;
   totalFare: number;
   passengers?: Passenger[];
-  lockExpiresAt?: number;
 }
 
 export const FARES: Record<string, number> = {
