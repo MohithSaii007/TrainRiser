@@ -3,7 +3,15 @@ export type BerthType = 'lb' | 'mb' | 'ub' | 'sl' | 'su' | 'cc';
 export interface Station {
   code: string;
   name: string;
-  index: number;
+}
+
+export interface ScheduleEntry {
+  station_code: string;
+  train_number: string;
+  train_name: string;
+  day: number;
+  departure?: string;
+  arrival?: string;
 }
 
 export interface CoachData {
