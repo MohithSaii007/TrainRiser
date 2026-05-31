@@ -14,6 +14,7 @@ import Ticket from "./pages/Ticket";
 import PnrStatus from "./pages/PnrStatus";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
+import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -36,6 +37,7 @@ const App = () => (
             <Route path="/ticket" element={<Ticket />} />
             <Route path="/pnr-status" element={<PnrStatus />} />
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/admin" element={<Admin />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

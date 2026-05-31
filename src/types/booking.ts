@@ -1,4 +1,5 @@
 export type BerthType = 'lb' | 'mb' | 'ub' | 'sl' | 'su' | 'cc';
+export type SeatStatus = 'AVAILABLE' | 'BOOKED' | 'LOCKED' | 'RAC' | 'WL';
 
 export interface Station {
   code: string;
@@ -14,20 +15,28 @@ export interface ScheduleEntry {
   arrival?: string;
 }
 
-export interface CoachData {
+export interface CoachConfig {
   id: string;
   type: string;
-  occupancy: number;
-  availableSeats: number;
   totalSeats: number;
+  availableCount: number;
+  racCount: number;
+  wlCount: number;
+  occupancy: number;
 }
 
-export interface SeatStatus {
-  number: number;
-  type: BerthType;
-  status: 'available' | 'booked' | 'locked' | 'rac' | 'wl';
+export interface SeatInventory {
+  id: string;
+  trainNo: string;
+  date: string;
+  coachId: string;
+  seatNo: number;
+  berthType: BerthType;
+  status: SeatStatus;
   lockedBy?: string;
   expiresAt?: number;
+  pnr?: string;
+  isRACShared?: boolean;
 }
 
 export interface Train {
@@ -38,7 +47,7 @@ export interface Train {
   coaches: string[];
   crowdLevel: 'low' | 'medium' | 'high';
   confirmationProb?: number;
-  route: string[]; // Array of station codes
+  route: string[];
 }
 
 export interface Passenger {
@@ -47,9 +56,12 @@ export interface Passenger {
   seatNumber: number;
   berthType: string;
   preference?: BerthType;
+  status: SeatStatus;
+  coachId?: string;
 }
 
 export interface BookingData {
+  pnr?: string;
   train: Train;
   from: string;
   to: string;
@@ -62,6 +74,8 @@ export interface BookingData {
   totalFare: number;
   passengers?: Passenger[];
   lockExpiresAt?: number;
+  status: 'CONFIRMED' | 'CANCELLED' | 'PARTIAL';
+  createdAt: string;
 }
 
 export const FARES: Record<string, number> = {
@@ -87,4 +101,12 @@ export const BERTH_LABELS: Record<BerthType, string> = {
   sl: "Side Lower",
   su: "Side Upper",
   cc: "Chair Car Seat",
+};
+
+export const COACH_COMPOSITION = {
+  SL: { count: 8, prefix: 'S', seats: 72 },
+  "3A": { count: 2, prefix: 'B', seats: 72 },
+  "2A": { count: 2, prefix: 'A', seats: 54 },
+  "1A": { count: 2, prefix: 'H', seats: 24 },
+  "CC": { count: 2, prefix: 'C', seats: 60 }
 };

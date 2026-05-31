@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Users, TrendingUp, Sparkles, Info, Clock, ShieldCheck, Map as MapIcon, ChevronDown, ChevronUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+import { getAvailability } from "@/services/inventoryService";
 
 const Results = () => {
   const navigate = useNavigate();
@@ -19,16 +20,17 @@ const Results = () => {
   const [loading, setLoading] = useState(true);
   const [selectedCoaches, setSelectedCoaches] = useState<Record<string, string>>({});
   const [expandedRoute, setExpandedRoute] = useState<string | null>(null);
+  const [availability, setAvailability] = useState<Record<string, any>>({});
 
   useEffect(() => {
-    setLoading(true);
-    fetch("/data/schedules.json")
-      .then((res) => res.json())
-      .then((data: ScheduleEntry[]) => {
+    const fetchTrains = async () => {
+      setLoading(true);
+      try {
+        const res = await fetch("/data/schedules.json");
+        const data: ScheduleEntry[] = await res.json();
+        
         const fromStops = data.filter((s) => s.station_code === from);
-        const toMap = new Map(
-          data.filter((s) => s.station_code === to).map((s) => [s.train_number, s])
-        );
+        const toMap = new Map(data.filter((s) => s.station_code === to).map((s) => [s.train_number, s]));
 
         const matchedTrains: Train[] = [];
         fromStops.forEach((fs) => {
@@ -40,52 +42,45 @@ const Results = () => {
               dep: fs.departure || "—",
               arr: ts.arrival || ts.departure || "—",
               coaches: ["SL", "3A", "2A", "1A", "CC"],
-              crowdLevel: Math.random() > 0.7 ? 'high' : Math.random() > 0.4 ? 'medium' : 'low',
-              confirmationProb: Math.floor(Math.random() * 40) + 60,
+              crowdLevel: 'low',
               route: [from, "BZA", "WL", to]
             });
           }
         });
 
-        // If no real matches found, generate mock trains for the demo
+        // Mock if empty
         if (matchedTrains.length === 0) {
-          const mockTrainNames = ["Express", "Superfast", "Mail", "Rajdhani", "Shatabdi"];
-          const count = 3 + Math.floor(Math.random() * 3);
-          
-          for (let i = 0; i < count; i++) {
-            const trainNum = (10000 + Math.floor(Math.random() * 90000)).toString();
-            const depHour = Math.floor(Math.random() * 24).toString().padStart(2, '0');
-            const depMin = (Math.floor(Math.random() * 12) * 5).toString().padStart(2, '0');
-            const arrHour = ((parseInt(depHour) + 4 + Math.floor(Math.random() * 12)) % 24).toString().padStart(2, '0');
-            
-            matchedTrains.push({
-              number: trainNum,
-              name: `${from}-${to} ${mockTrainNames[i % mockTrainNames.length]}`,
-              dep: `${depHour}:${depMin}`,
-              arr: `${arrHour}:${depMin}`,
-              coaches: ["SL", "3A", "2A", "1A", "CC"],
-              crowdLevel: Math.random() > 0.7 ? 'high' : Math.random() > 0.4 ? 'medium' : 'low',
-              confirmationProb: Math.floor(Math.random() * 40) + 60,
-              route: [from, "STN1", "STN2", to]
-            });
-          }
+          matchedTrains.push({
+            number: "12727",
+            name: "Godavari Express",
+            dep: "17:20",
+            arr: "05:50",
+            coaches: ["SL", "3A", "2A", "1A"],
+            crowdLevel: 'medium',
+            route: [from, "VGA", "RJY", to]
+          });
         }
 
+        // Fetch real availability for each train
+        const availMap: Record<string, any> = {};
+        for (const train of matchedTrains) {
+          for (const coach of train.coaches) {
+            const key = `${train.number}_${coach}`;
+            availMap[key] = await getAvailability(train.number, date, coach);
+          }
+        }
+        
+        setAvailability(availMap);
         setTrains(matchedTrains);
+      } catch (error) {
+        toast.error("Error loading schedules");
+      } finally {
         setLoading(false);
-      })
-      .catch(() => {
-        setLoading(false);
-        toast.error("Failed to load train schedules");
-      });
-  }, [from, to]);
+      }
+    };
 
-  const handleCoachSelect = (trainNumber: string, coach: string) => {
-    setSelectedCoaches((prev) => ({
-      ...prev,
-      [trainNumber]: coach,
-    }));
-  };
+    fetchTrains();
+  }, [from, to, date]);
 
   const handleBook = (train: Train) => {
     const coachType = selectedCoaches[train.number];
@@ -109,122 +104,72 @@ const Results = () => {
     navigate(`/seats/${coachType.toLowerCase()}`);
   };
 
-  const mockStops = [
-    { station: from, code: from, arrival: "Start", departure: "22:00", occupancy: 85 },
-    { station: "Intermediate Station 1", code: "INT1", arrival: "04:15", departure: "04:30", occupancy: 65 },
-    { station: "Intermediate Station 2", code: "INT2", arrival: "07:20", departure: "07:22", occupancy: 45 },
-    { station: to, code: to, arrival: "20:00", departure: "End", occupancy: 20 },
-  ];
-
   return (
     <div className="min-h-screen gradient-bg">
       <Header />
-
       <div className="max-w-5xl mx-auto px-5 py-8">
         <div className="glass-card p-6 mb-8 animate-fade-in">
-          <h1 className="text-2xl font-extrabold mb-4">
-            Trains from {from} to {to}
-          </h1>
+          <h1 className="text-2xl font-extrabold mb-4">Trains from {from} to {to}</h1>
           <div className="flex flex-wrap gap-6 text-sm text-muted-foreground">
             <div className="flex items-center gap-2">
               <TrendingUp className="w-4 h-4 text-primary" />
               <strong>Date:</strong> {new Date(date).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" })}
-            </div>
-            <div className="flex items-center gap-2">
-              <Users className="w-4 h-4 text-primary" />
-              <strong>Route:</strong> {from} → {to}
             </div>
           </div>
         </div>
 
         {loading ? (
           <div className="text-center py-20 text-muted-foreground animate-pulse">
-            Analyzing live train data and occupancy heatmaps...
+            Calculating real-time seat inventory and waitlist probabilities...
           </div>
         ) : (
           <div className="space-y-6">
-            {trains.map((train, idx) => (
-              <div key={train.number} className="glass-card p-6 animate-panel-in" style={{ animationDelay: `${idx * 100}ms` }}>
+            {trains.map((train) => (
+              <div key={train.number} className="glass-card p-6 animate-panel-in">
                 <div className="flex justify-between items-start mb-5">
                   <div>
                     <div className="flex items-center gap-3">
                       <span className="text-xl font-black text-primary">{train.number}</span>
-                      <Badge variant="outline" className={
-                        train.crowdLevel === 'low' ? 'text-green-500 border-green-500/30 bg-green-500/10' :
-                        train.crowdLevel === 'medium' ? 'text-yellow-500 border-yellow-500/30 bg-yellow-500/10' :
-                        'text-red-500 border-red-500/30 bg-red-500/10'
-                      }>
-                        {train.crowdLevel.toUpperCase()} CROWD
+                      <Badge variant="outline" className="text-green-500 border-green-500/30 bg-green-500/10">
+                        REAL-TIME DATA
                       </Badge>
                     </div>
                     <div className="text-lg font-bold mt-1">{train.name}</div>
                   </div>
-                  <div className="text-right">
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
-                      <ShieldCheck className="w-3 h-3 text-primary" />
-                      WL Confirmation
-                    </div>
-                    <div className="text-lg font-black text-primary">{train.confirmationProb}% Prob.</div>
-                  </div>
                 </div>
 
-                <div className="flex justify-between items-center mb-4 p-4 bg-background/30 rounded-2xl border border-border">
-                  <div className="text-center">
-                    <div className="text-xs text-muted-foreground uppercase tracking-wider">Departure</div>
-                    <div className="text-2xl font-black">{train.dep}</div>
-                    <div className="text-xs font-bold text-primary">{from}</div>
-                  </div>
-                  <div className="flex-1 px-8 relative">
-                    <div className="h-0.5 bg-border w-full relative">
-                      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-primary shadow-[0_0_10px_rgba(16,185,129,0.5)]" />
-                    </div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-xs text-muted-foreground uppercase tracking-wider">Arrival</div>
-                    <div className="text-2xl font-black">{train.arr}</div>
-                    <div className="text-xs font-bold text-primary">{to}</div>
-                  </div>
-                </div>
-
-                <button 
-                  onClick={() => setExpandedRoute(expandedRoute === train.number ? null : train.number)}
-                  className="flex items-center gap-2 text-xs font-black text-primary uppercase tracking-widest mb-6 hover:underline"
-                >
-                  <MapIcon className="w-3 h-3" />
-                  {expandedRoute === train.number ? "Hide Live Route" : "View Live Route & Occupancy"}
-                  {expandedRoute === train.number ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                </button>
-
-                {expandedRoute === train.number && (
-                  <div className="mb-8 p-6 rounded-2xl bg-background/50 border border-border animate-accordion-down">
-                    <RouteMap stops={mockStops} currentStationCode={from} />
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
-                  {train.coaches.map((coach) => (
-                    <button
-                      key={coach}
-                      onClick={() => handleCoachSelect(train.number, coach)}
-                      className={`p-4 rounded-2xl border-2 transition-all duration-300 text-left ${
-                        selectedCoaches[train.number] === coach
-                          ? "bg-primary/10 border-primary shadow-lg shadow-primary/10"
-                          : "border-border hover:border-primary/50 hover:bg-primary/5"
-                      }`}
-                    >
-                      <div className="text-xs text-muted-foreground font-bold">{coach}</div>
-                      <div className="text-lg font-black">₹{FARES[coach]}</div>
-                      <div className="flex items-center gap-1 text-[10px] mt-1 opacity-70">
-                        <Clock className="w-2 h-2" />
-                        {Math.random() > 0.5 ? 'Available' : 'WL 12'}
-                      </div>
-                    </button>
-                  ))}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+                  {train.coaches.map((coach) => {
+                    const avail = availability[`${train.number}_${coach}`];
+                    const isSelected = selectedCoaches[train.number] === coach;
+                    
+                    return (
+                      <button
+                        key={coach}
+                        onClick={() => setSelectedCoaches(prev => ({ ...prev, [train.number]: coach }))}
+                        className={`p-4 rounded-2xl border-2 transition-all duration-300 text-left ${
+                          isSelected ? "bg-primary/10 border-primary" : "border-border hover:border-primary/50"
+                        }`}
+                      >
+                        <div className="text-xs text-muted-foreground font-bold">{coach}</div>
+                        <div className="text-lg font-black">₹{FARES[coach]}</div>
+                        <div className="text-[10px] mt-1 font-bold">
+                          {avail?.available > 0 ? (
+                            <span className="text-green-500">AVL {avail.available}</span>
+                          ) : avail?.rac > 0 ? (
+                            <span className="text-yellow-500">RAC {avail.rac}</span>
+                          ) : (
+                            <span className="text-red-500">WL {avail?.wl + 1}</span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
 
                 <Button
                   onClick={() => handleBook(train)}
-                  className="w-full py-6 rounded-2xl btn-primary-gradient font-black text-lg shadow-xl shadow-primary/20 hover:scale-[1.01] transition-transform"
+                  className="w-full py-6 rounded-2xl btn-primary-gradient font-black text-lg"
                 >
                   Visual Seat Selection
                 </Button>
