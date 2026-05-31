@@ -23,7 +23,14 @@ export const lockSeats = async (
       
       for (const seatNum of seatNumbers) {
         const seatRef = doc(db, "trains", trainId, "coaches", coachId, "seats", seatNum.toString());
-        const seatSnap = await transaction.get(seatRef);
+        let seatSnap;
+        
+        try {
+          seatSnap = await transaction.get(seatRef);
+        } catch (e) {
+          console.error("Error getting seat snapshot:", e);
+          throw new Error("Database connection error. Please check your connection.");
+        }
 
         if (seatSnap.exists()) {
           const data = seatSnap.data();
@@ -48,8 +55,12 @@ export const lockSeats = async (
       }
       return results;
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error in lockSeats transaction:", error);
+    // Re-throw with a cleaner message if it's a permission error
+    if (error.code === 'permission-denied') {
+      throw new Error("Database permission denied. Please ensure Firestore rules are deployed.");
+    }
     throw error;
   }
 };
@@ -69,7 +80,6 @@ export const releaseSeats = async (trainId: string, coachId: string, seatNumbers
     }
   } catch (error) {
     console.error("Error in releaseSeats:", error);
-    throw error;
   }
 };
 

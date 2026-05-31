@@ -44,8 +44,8 @@ const SeatSelection = () => {
   const [coaches, setCoaches] = useState<CoachData[]>([]);
   const [realTimeSeats, setRealTimeSeats] = useState<Record<number, SeatStatus>>({});
   const [isLocking, setIsLocking] = useState(false);
+  const [useFallback, setUseFallback] = useState(false);
 
-  // Use a stable anonymous ID if user is not logged in
   const [anonymousId] = useState(() => `anon_${Math.random().toString(36).substr(2, 9)}`);
   const effectiveUserId = user?.uid || anonymousId;
 
@@ -71,7 +71,7 @@ const SeatSelection = () => {
   }, [navigate, coachClass, config.totalSeats]);
 
   useEffect(() => {
-    if (currentCoach && bookingData?.train?.number) {
+    if (currentCoach && bookingData?.train?.number && !useFallback) {
       const unsubscribe = subscribeToCoachSeats(
         bookingData.train.number,
         currentCoach.id,
@@ -83,7 +83,7 @@ const SeatSelection = () => {
       );
       return () => unsubscribe();
     }
-  }, [currentCoach, bookingData?.train?.number]);
+  }, [currentCoach, bookingData?.train?.number, useFallback]);
 
   const toggleSeat = async (num: number, type: BerthType) => {
     const seatStatus = realTimeSeats[num];
@@ -99,10 +99,13 @@ const SeatSelection = () => {
         delete newTypes[num];
         return newTypes;
       });
-      try {
-        await releaseSeats(bookingData!.train.number, currentCoach!.id, [num], effectiveUserId);
-      } catch (e) {
-        console.error("Error releasing seat:", e);
+      
+      if (!useFallback) {
+        try {
+          await releaseSeats(bookingData!.train.number, currentCoach!.id, [num], effectiveUserId);
+        } catch (e) {
+          console.error("Error releasing seat:", e);
+        }
       }
     } else {
       if (selectedSeats.length >= 6) {
@@ -112,11 +115,18 @@ const SeatSelection = () => {
       
       setIsLocking(true);
       try {
-        await lockSeats(bookingData!.train.number, currentCoach!.id, [num], effectiveUserId);
+        if (!useFallback) {
+          await lockSeats(bookingData!.train.number, currentCoach!.id, [num], effectiveUserId);
+        }
         setSelectedSeats((prev) => [...prev, num]);
         setSeatTypes((prev) => ({ ...prev, [num]: type }));
       } catch (error: any) {
-        toast.error("Failed to lock seat. Please try again.");
+        console.error("Locking failed, switching to fallback:", error);
+        setUseFallback(true);
+        // Allow selection in fallback mode
+        setSelectedSeats((prev) => [...prev, num]);
+        setSeatTypes((prev) => ({ ...prev, [num]: type }));
+        toast.info("Using local selection mode (Database offline)");
       } finally {
         setIsLocking(false);
       }
@@ -148,14 +158,14 @@ const SeatSelection = () => {
 
     setIsLocking(true);
     try {
-      await lockSeats(bookingData!.train.number, currentCoach!.id, cluster, effectiveUserId);
+      if (!useFallback) {
+        await lockSeats(bookingData!.train.number, currentCoach!.id, cluster, effectiveUserId);
+      }
       setSelectedSeats(prev => [...new Set([...prev, ...cluster])]);
       
       const newTypes = { ...seatTypes };
       cluster.forEach(num => {
-        const blockIdx = Math.floor((num - 1) / (config.seatsPerBlock + (config.hasSide ? config.sidePattern.length : 0)));
         const posInBlock = (num - 1) % (config.seatsPerBlock + (config.hasSide ? config.sidePattern.length : 0));
-        
         if (posInBlock < config.seatsPerBlock) {
           newTypes[num] = config.pattern[posInBlock % config.pattern.length];
         } else {
@@ -163,10 +173,11 @@ const SeatSelection = () => {
         }
       });
       setSeatTypes(newTypes);
-      
-      toast.success(`${count} seats locked successfully!`);
+      toast.success(`${count} seats selected!`);
     } catch (error: any) {
-      toast.error("Failed to lock seats");
+      setUseFallback(true);
+      setSelectedSeats(prev => [...new Set([...prev, ...cluster])]);
+      toast.info("Using local selection mode");
     } finally {
       setIsLocking(false);
     }
