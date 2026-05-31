@@ -161,7 +161,6 @@ const SeatSelection = () => {
       
       const newTypes = { ...seatTypes };
       cluster.forEach(num => {
-        // Find the type from the pattern
         const blockIdx = Math.floor((num - 1) / (config.seatsPerBlock + (config.hasSide ? config.sidePattern.length : 0)));
         const posInBlock = (num - 1) % (config.seatsPerBlock + (config.hasSide ? config.sidePattern.length : 0));
         
@@ -321,16 +320,6 @@ const SeatSelection = () => {
                   Select Coach
                 </h3>
                 <div className="flex gap-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="text-[10px] font-black uppercase tracking-widest border-primary/30 text-primary" 
-                    onClick={() => selectQuickSeats(2)}
-                    disabled={isLocking}
-                  >
-                    {isLocking ? <Loader2 className="w-3 h-3 mr-2 animate-spin" /> : <MousePointer2 className="w-3 h-3 mr-2" />}
-                    Select 2 Seats
-                  </Button>
                   <Button 
                     variant="outline" 
                     size="sm" 
