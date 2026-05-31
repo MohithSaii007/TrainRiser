@@ -1,30 +1,20 @@
 [
-  {
-    "station_code": "TPTY",
-    "train_number": "12765",
-    "train_name": "Seven Hills Express",
-    "day": 1,
-    "departure": "15:40"
-  },
-  {
-    "station_code": "ATP",
-    "train_number": "12765",
-    "train_name": "Seven Hills Express",
-    "day": 1,
-    "arrival": "20:15"
-  },
-  {
-    "station_code": "TPTY",
-    "train_number": "17488",
-    "train_name": "Tirumala Express",
-    "day": 1,
-    "departure": "20:55"
-  },
-  {
-    "station_code": "ATP",
-    "train_number": "17488",
-    "train_name": "Tirumala Express",
-    "day": 2,
-    "arrival": "01:40"
-  }
+  { "station_code": "TPTY", "train_number": "12765", "train_name": "Seven Hills Express", "day": 1, "departure": "15:40" },
+  { "station_code": "ATP", "train_number": "12765", "train_name": "Seven Hills Express", "day": 1, "arrival": "20:15" },
+  { "station_code": "TPTY", "train_number": "17488", "train_name": "Tirumala Express", "day": 1, "departure": "20:55" },
+  { "station_code": "ATP", "train_number": "17488", "train_name": "Tirumala Express", "day": 2, "arrival": "01:40" },
+  { "station_code": "TPTY", "train_number": "12798", "train_name": "Venkatadri Express", "day": 1, "departure": "18:35" },
+  { "station_code": "ATP", "train_number": "12798", "train_name": "Venkatadri Express", "day": 2, "arrival": "00:58" },
+  { "station_code": "TPTY", "train_number": "12793", "train_name": "Rayalaseema Express", "day": 1, "departure": "17:30" },
+  { "station_code": "ATP", "train_number": "12793", "train_name": "Rayalaseema Express", "day": 1, "arrival": "22:23" },
+  { "station_code": "TPTY", "train_number": "17415", "train_name": "Haripriya Express", "day": 1, "departure": "21:30" },
+  { "station_code": "ATP", "train_number": "17415", "train_name": "Haripriya Express", "day": 2, "arrival": "02:58" },
+  { "station_code": "MAS", "train_number": "12007", "train_name": "Shatabdi Express", "day": 1, "departure": "06:00" },
+  { "station_code": "SBC", "train_number": "12007", "train_name": "Shatabdi Express", "day": 1, "arrival": "10:45" },
+  { "station_code": "NDLS", "train_number": "12301", "train_name": "Rajdhani Express", "day": 1, "departure": "16:50" },
+  { "station_code": "HWH", "train_number": "12301", "train_name": "Rajdhani Express", "day": 2, "arrival": "09:50" },
+  { "station_code": "SBC", "train_number": "12657", "train_name": "KSR Bengaluru Mail", "day": 1, "departure": "22:40" },
+  { "station_code": "MAS", "train_number": "12657", "train_name": "KSR Bengaluru Mail", "day": 2, "arrival": "04:30" },
+  { "station_code": "CSMT", "train_number": "12123", "train_name": "Deccan Queen", "day": 1, "departure": "17:10" },
+  { "station_code": "PUNE", "train_number": "12123", "train_name": "Deccan Queen", "day": 1, "arrival": "20:25" }
 ]
